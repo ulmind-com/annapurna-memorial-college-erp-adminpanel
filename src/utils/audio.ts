@@ -1,6 +1,6 @@
 /**
- * Web Audio API Sound Synthesizer
- * Provides sleek, hardware-accelerated micro-interaction sound effects
+ * Web Audio API Sound Synthesizer & Haptic Engine
+ * Provides sleek, hardware-accelerated micro-interaction and haptic feedback sound effects
  * without external audio assets.
  */
 
@@ -10,7 +10,6 @@ class SoundSynthesizer {
   private listeners: Set<(enabled: boolean) => void> = new Set();
 
   constructor() {
-    // Read user preference from localStorage
     const saved = localStorage.getItem('annapurna_erp_sound_enabled');
     this.enabled = saved !== null ? saved === 'true' : true;
   }
@@ -38,7 +37,7 @@ class SoundSynthesizer {
     localStorage.setItem('annapurna_erp_sound_enabled', String(this.enabled));
     this.listeners.forEach((fn) => fn(this.enabled));
     if (this.enabled) {
-      this.play('toggle');
+      this.play('haptic');
     }
     return this.enabled;
   }
@@ -55,9 +54,9 @@ class SoundSynthesizer {
   }
 
   /**
-   * Synthesize interactive sound effect
+   * Synthesize interactive sound / haptic effect
    */
-  public play(type: 'click' | 'tab' | 'success' | 'alert' | 'approve' | 'toggle' | 'pop'): void {
+  public play(type: 'click' | 'tab' | 'haptic' | 'success' | 'alert' | 'approve' | 'toggle' | 'pop'): void {
     if (!this.enabled) return;
 
     try {
@@ -67,8 +66,28 @@ class SoundSynthesizer {
       const now = ctx.currentTime;
 
       switch (type) {
+        case 'haptic': {
+          // Tactile low-frequency haptic punch (30ms) mimicking trackpad/phone haptic motor
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(140, now);
+          osc.frequency.exponentialRampToValueAtTime(55, now + 0.035);
+
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.035);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.04);
+          break;
+        }
+
         case 'click': {
-          // Sleek high-frequency micro pop (50ms)
+          // Sleek high-frequency micro pop (40ms)
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
 
@@ -88,47 +107,45 @@ class SoundSynthesizer {
         }
 
         case 'tab': {
-          // Delicate frequency glide for navigation (80ms)
+          // Delicate tactile frequency glide for navigation (65ms)
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
 
           osc.type = 'triangle';
-          osc.frequency.setValueAtTime(440, now);
-          osc.frequency.exponentialRampToValueAtTime(720, now + 0.07);
+          osc.frequency.setValueAtTime(320, now);
+          osc.frequency.exponentialRampToValueAtTime(680, now + 0.06);
 
-          gain.gain.setValueAtTime(0.035, now);
-          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
+          gain.gain.setValueAtTime(0.04, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.065);
 
           osc.connect(gain);
           gain.connect(ctx.destination);
 
           osc.start(now);
-          osc.stop(now + 0.08);
+          osc.stop(now + 0.07);
           break;
         }
 
         case 'pop': {
-          // Soft bubble tap
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
 
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(600, now);
-          osc.frequency.exponentialRampToValueAtTime(900, now + 0.05);
+          osc.frequency.setValueAtTime(550, now);
+          osc.frequency.exponentialRampToValueAtTime(850, now + 0.045);
 
           gain.gain.setValueAtTime(0.05, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
 
           osc.connect(gain);
           gain.connect(ctx.destination);
 
           osc.start(now);
-          osc.stop(now + 0.055);
+          osc.stop(now + 0.05);
           break;
         }
 
         case 'toggle': {
-          // Dual micro-click
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
 
@@ -149,7 +166,7 @@ class SoundSynthesizer {
 
         case 'success': {
           // Harmonic C5 -> E5 -> G5 chord progression
-          const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+          const notes = [523.25, 659.25, 783.99];
           notes.forEach((freq, idx) => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -157,7 +174,7 @@ class SoundSynthesizer {
             osc.type = 'sine';
             osc.frequency.setValueAtTime(freq, now + idx * 0.04);
 
-            gain.gain.setValueAtTime(0.03, now + idx * 0.04);
+            gain.gain.setValueAtTime(0.035, now + idx * 0.04);
             gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.04 + 0.22);
 
             osc.connect(gain);
@@ -171,13 +188,13 @@ class SoundSynthesizer {
 
         case 'approve': {
           // Triumphant multi-tone chord for official marksheet approval
-          const chord = [440, 554.37, 659.25, 880]; // A major triumphant
+          const chord = [440, 554.37, 659.25, 880];
           chord.forEach((freq, idx) => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
 
             osc.type = 'sine';
-            const startTime = now + idx * 0.06;
+            const startTime = now + idx * 0.05;
             osc.frequency.setValueAtTime(freq, startTime);
 
             gain.gain.setValueAtTime(0.04, startTime);
@@ -193,7 +210,6 @@ class SoundSynthesizer {
         }
 
         case 'alert': {
-          // Gentle low tone warning
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
 
@@ -213,7 +229,6 @@ class SoundSynthesizer {
         }
       }
     } catch (e) {
-      // AudioContext could be blocked by browser policy prior to gesture
       console.warn('Audio synthesis deferred:', e);
     }
   }

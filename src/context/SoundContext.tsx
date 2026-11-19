@@ -6,6 +6,7 @@ interface SoundContextType {
   toggleSound: () => void;
   playClick: () => void;
   playTab: () => void;
+  playHaptic: () => void;
   playSuccess: () => void;
   playApprove: () => void;
   playAlert: () => void;
@@ -30,6 +31,7 @@ export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const playClick = () => soundFx.play('click');
   const playTab = () => soundFx.play('tab');
+  const playHaptic = () => soundFx.play('haptic');
   const playSuccess = () => soundFx.play('success');
   const playApprove = () => soundFx.play('approve');
   const playAlert = () => soundFx.play('alert');
@@ -42,6 +44,7 @@ export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toggleSound,
         playClick,
         playTab,
+        playHaptic,
         playSuccess,
         playApprove,
         playAlert,

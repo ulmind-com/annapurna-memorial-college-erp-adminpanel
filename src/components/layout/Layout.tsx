@@ -6,20 +6,32 @@ import { SearchModal } from '../common/SearchModal';
 interface LayoutProps {
   currentView: string;
   onSelectView: (view: string) => void;
+  currentRole: 'SUPER_ADMIN' | 'TEACHER' | 'STUDENT';
+  onChangeRole: (role: 'SUPER_ADMIN' | 'TEACHER' | 'STUDENT') => void;
   children: React.ReactNode;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ currentView, onSelectView, children }) => {
+export const Layout: React.FC<LayoutProps> = ({
+  currentView,
+  onSelectView,
+  currentRole,
+  onChangeRole,
+  children,
+}) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white">
+    <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 font-sans selection:bg-blue-600 selection:text-white">
       {/* Sidebar */}
       <Sidebar currentView={currentView} onSelectView={onSelectView} />
 
       {/* Main Body */}
       <div className="flex-1 flex flex-col min-w-0">
-        <Header onOpenSearch={() => setIsSearchOpen(true)} />
+        <Header
+          onOpenSearch={() => setIsSearchOpen(true)}
+          currentRole={currentRole}
+          onChangeRole={onChangeRole}
+        />
 
         <main className="flex-1 p-6 lg:p-8 max-w-7xl w-full mx-auto overflow-x-hidden">
           {children}

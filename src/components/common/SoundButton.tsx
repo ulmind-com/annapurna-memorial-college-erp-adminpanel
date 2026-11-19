@@ -2,9 +2,9 @@ import React from 'react';
 import { useSound } from '../../context/SoundContext';
 
 interface SoundButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'ghost' | 'outline';
+  variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'ghost' | 'outline' | 'white';
   size?: 'sm' | 'md' | 'lg';
-  soundType?: 'click' | 'success' | 'approve' | 'alert' | 'pop' | 'tab';
+  soundType?: 'click' | 'success' | 'approve' | 'alert' | 'pop' | 'tab' | 'haptic';
   icon?: React.ReactNode;
 }
 
@@ -19,11 +19,14 @@ export const SoundButton: React.FC<SoundButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const { playClick, playSuccess, playApprove, playAlert, playPop, playTab } = useSound();
+  const { playClick, playSuccess, playApprove, playAlert, playPop, playTab, playHaptic } = useSound();
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (disabled) return;
     switch (soundType) {
+      case 'haptic':
+        playHaptic();
+        break;
       case 'success':
         playSuccess();
         break;
@@ -47,7 +50,7 @@ export const SoundButton: React.FC<SoundButtonProps> = ({
   };
 
   const baseStyles =
-    'inline-flex items-center justify-center font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:pointer-events-none rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900';
+    'inline-flex items-center justify-center font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:pointer-events-none rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2';
 
   const sizeStyles = {
     sm: 'text-xs px-2.5 py-1.5 gap-1.5',
@@ -57,19 +60,21 @@ export const SoundButton: React.FC<SoundButtonProps> = ({
 
   const variantStyles = {
     primary:
-      'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25 focus:ring-indigo-500 border border-indigo-500/30',
+      'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20 focus:ring-blue-500 border border-blue-500/30',
     secondary:
-      'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 focus:ring-slate-500',
+      'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 focus:ring-slate-400 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700/80',
+    white:
+      'bg-white text-slate-800 hover:bg-slate-50 border border-slate-200 shadow-sm focus:ring-blue-500',
     success:
-      'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/25 focus:ring-emerald-500 border border-emerald-500/30',
+      'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 focus:ring-emerald-500 border border-emerald-500/30',
     danger:
-      'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/25 focus:ring-rose-500 border border-rose-500/30',
+      'bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/20 focus:ring-rose-500 border border-rose-500/30',
     warning:
-      'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/25 focus:ring-amber-500 border border-amber-500/30',
+      'bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/20 focus:ring-amber-500 border border-amber-500/30',
     ghost:
-      'text-slate-300 hover:text-white hover:bg-slate-800/60 focus:ring-slate-500',
+      'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800/60 focus:ring-slate-500',
     outline:
-      'border border-slate-700 text-slate-300 hover:bg-slate-800/80 hover:text-white focus:ring-slate-500',
+      'border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white focus:ring-slate-500',
   };
 
   return (
