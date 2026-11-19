@@ -17,6 +17,7 @@ import { Marksheet } from '../../types';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { useSound } from '../../context/SoundContext';
+import collegeLogo from '../../assets/logo.png';
 
 interface StudentDashboardViewProps {
   onNavigate: (view: string) => void;
@@ -70,11 +71,16 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
                 alt="Ananya Das"
                 className="w-20 h-20 rounded-full border-4 border-white/30 object-cover shadow-md"
               />
-              <img
-                src="/logo.png"
-                alt="Annapurna Memorial College of Education Crest"
-                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full border-2 border-white bg-white object-contain p-0.5 shadow-sm"
-              />
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full border-2 border-white bg-white shadow-sm flex items-center justify-center overflow-hidden">
+                <img
+                  src={collegeLogo}
+                  alt="Annapurna Memorial College of Education Crest"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/logo.png';
+                  }}
+                  className="w-full h-full object-contain"
+                />
+              </div>
             </div>
             <div className="space-y-1">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white uppercase tracking-wider">

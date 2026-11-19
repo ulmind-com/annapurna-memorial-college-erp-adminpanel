@@ -23,6 +23,7 @@ import { useAuth, ActiveRole } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useSound } from '../../context/SoundContext';
 import { getCurrentLiveIST } from '../../utils/date';
+import collegeLogo from '../../assets/logo.png';
 
 export const LoginView: React.FC = () => {
   const { login, loading } = useAuth();
@@ -128,11 +129,16 @@ export const LoginView: React.FC = () => {
       {/* Top Security & Utility Header */}
       <header className="w-full max-w-7xl mx-auto px-6 py-5 flex items-center justify-between relative z-10 border-b border-slate-800/80">
         <div className="flex items-center gap-3.5">
-          <img
-            src="/logo.png"
-            alt="Annapurna Memorial College of Education Crest"
-            className="w-12 h-12 rounded-full border-2 border-blue-500/40 shadow-lg object-contain bg-white p-0.5 flex-shrink-0"
-          />
+          <div className="w-12 h-12 rounded-full border-2 border-blue-500/40 shadow-lg bg-white p-0.5 flex-shrink-0 flex items-center justify-center overflow-hidden">
+            <img
+              src={collegeLogo}
+              alt="Annapurna Memorial College of Education Crest"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/logo.png';
+              }}
+              className="w-full h-full object-contain"
+            />
+          </div>
           <div>
             <div className="text-base font-black tracking-tight text-white leading-tight">
               Annapurna Memorial College of Education

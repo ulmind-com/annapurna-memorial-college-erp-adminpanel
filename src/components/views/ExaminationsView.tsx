@@ -27,6 +27,7 @@ import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 import { useSound } from '../../context/SoundContext';
+import collegeLogo from '../../assets/logo.png';
 import { useAuth } from '../../context/AuthContext';
 
 export const ExaminationsView: React.FC = () => {
@@ -273,17 +274,22 @@ export const ExaminationsView: React.FC = () => {
           <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 shadow-xl space-y-6 relative overflow-hidden">
             {/* Watermark Crest */}
             <div className="absolute right-4 bottom-4 opacity-5 pointer-events-none">
-              <img src="/logo.png" alt="Watermark Crest" className="w-96 h-96 object-contain" />
+              <img src={collegeLogo} alt="Watermark Crest" className="w-96 h-96 object-contain" />
             </div>
 
             {/* Institutional Seal & Header */}
             <div className="text-center border-b border-slate-200 dark:border-slate-800 pb-6 space-y-2">
               <div className="flex items-center justify-center gap-3">
-                <img
-                  src="/logo.png"
-                  alt="Annapurna Memorial College of Education Crest"
-                  className="w-16 h-16 rounded-full border border-blue-600/40 object-contain shadow-md bg-white p-0.5"
-                />
+                <div className="w-16 h-16 rounded-full border border-blue-600/40 shadow-md bg-white p-0.5 flex items-center justify-center overflow-hidden">
+                  <img
+                    src={collegeLogo}
+                    alt="Annapurna Memorial College of Education Crest"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/logo.png';
+                    }}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
               </div>
               <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
                 Annapurna Memorial College of Education

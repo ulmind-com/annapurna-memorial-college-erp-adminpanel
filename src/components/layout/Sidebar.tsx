@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
+import collegeLogo from '../../assets/logo.png';
 
 interface SidebarProps {
   currentView: string;
@@ -99,11 +100,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView }) =
       {/* College Identity & Logo */}
       <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <img
-            src="/logo.png"
-            alt="Annapurna Memorial College of Education Crest"
-            className="w-10 h-10 rounded-full border border-blue-600/30 object-contain bg-white p-0.5 shadow-md flex-shrink-0"
-          />
+          <div className="w-10 h-10 rounded-full border border-blue-600/30 bg-white p-0.5 shadow-md flex-shrink-0 flex items-center justify-center overflow-hidden">
+            <img
+              src={collegeLogo}
+              alt="Annapurna Memorial College of Education Crest"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/logo.png';
+              }}
+              className="w-full h-full object-contain"
+            />
+          </div>
           <div className="min-w-0">
             <div className="text-xs font-black text-slate-900 dark:text-white tracking-tight leading-tight truncate">
               Annapurna Memorial

@@ -32,6 +32,7 @@ import {
 } from 'recharts';
 import { SoundButton } from '../common/SoundButton';
 import { useSound } from '../../context/SoundContext';
+import collegeLogo from '../../assets/logo.png';
 
 interface TeacherDashboardViewProps {
   onNavigate: (view: string) => void;
@@ -150,11 +151,16 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
       {/* Top Breadcrumb Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img
-            src="/logo.png"
-            alt="Annapurna Memorial College of Education Crest"
-            className="w-10 h-10 rounded-full object-contain border border-blue-600/30 p-0.5 bg-white shadow-xs flex-shrink-0"
-          />
+          <div className="w-10 h-10 rounded-full border border-blue-600/30 p-0.5 bg-white shadow-xs flex-shrink-0 flex items-center justify-center overflow-hidden">
+            <img
+              src={collegeLogo}
+              alt="Annapurna Memorial College of Education Crest"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/logo.png';
+              }}
+              className="w-full h-full object-contain"
+            />
+          </div>
           <div>
             <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Teacher Dashboard</h2>
             <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
