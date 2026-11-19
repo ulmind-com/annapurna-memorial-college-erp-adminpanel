@@ -37,6 +37,89 @@ import {
 const DEFAULT_API_URL = 'https://annapurna-memorial-college-erp-adminpanel.onrender.com/api/v1';
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, '');
 
+export interface RegisteredAccount {
+  id: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  full_name: string;
+  avatar_url: string;
+  is_active: boolean;
+  department?: string;
+  roll_number?: string;
+}
+
+export const INITIAL_REGISTERED_ACCOUNTS: RegisteredAccount[] = [
+  {
+    id: 'user-admin-1',
+    email: 'admin@annapurnacollege.edu.in',
+    password: 'Admin@Amce2024#',
+    role: 'SUPER_ADMIN',
+    full_name: 'Dr. Arnab Senapati, Principal',
+    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    is_active: true,
+  },
+  {
+    id: 'user-admin-alias',
+    email: 'admin@annapurnacollege.org',
+    password: 'Admin@Amce2024#',
+    role: 'SUPER_ADMIN',
+    full_name: 'Dr. Arnab Senapati, Principal',
+    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    is_active: true,
+  },
+  {
+    id: 'user-fac-1',
+    email: 'faculty.soumen@annapurnacollege.edu.in',
+    password: 'Teacher@Amce2024#',
+    role: 'FACULTY',
+    full_name: 'Prof. Soumen Mukherjee',
+    avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+    is_active: true,
+    department: 'Department of Teacher Education',
+  },
+  {
+    id: 'user-fac-2',
+    email: 'soumen.m@annapurnacollege.edu.in',
+    password: 'Teacher@Amce2024#',
+    role: 'FACULTY',
+    full_name: 'Prof. Soumen Mukherjee',
+    avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+    is_active: true,
+    department: 'Department of Teacher Education',
+  },
+  {
+    id: 'user-fac-3',
+    email: 'ria.sharma@annapurnacollege.edu.in',
+    password: 'Teacher@Amce2024#',
+    role: 'FACULTY',
+    full_name: 'Ms. Ria Sharma',
+    avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+    is_active: true,
+    department: 'Department of Teacher Education',
+  },
+  {
+    id: 'user-stud-1',
+    email: 'ananya.das@student.annapurnacollege.org',
+    password: 'Student@Amce2024#',
+    role: 'STUDENT',
+    full_name: 'Ananya Das',
+    avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+    is_active: true,
+    roll_number: 'AMC-BED-2024-001',
+  },
+  {
+    id: 'user-stud-2',
+    email: 'souvik.halder@student.annapurnacollege.org',
+    password: 'Student@Amce2024#',
+    role: 'STUDENT',
+    full_name: 'Souvik Halder',
+    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+    is_active: true,
+    roll_number: 'AMC-BED-2024-002',
+  },
+];
+
 class ApiClient {
   private token: string | null = null;
   // Local reactive cache for mock fallback mode
@@ -196,42 +279,63 @@ class ApiClient {
     }
   }
 
+  getRegisteredAccounts(): RegisteredAccount[] {
+    const saved = localStorage.getItem('annapurna_registered_users');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        // fallback
+      }
+    }
+    localStorage.setItem('annapurna_registered_users', JSON.stringify(INITIAL_REGISTERED_ACCOUNTS));
+    return INITIAL_REGISTERED_ACCOUNTS;
+  }
+
+  saveRegisteredAccounts(accounts: RegisteredAccount[]): void {
+    localStorage.setItem('annapurna_registered_users', JSON.stringify(accounts));
+  }
+
   // --- AUTH ---
   async login(email: string, password: string): Promise<{ access_token: string; user: User }> {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
     try {
       const res = await this.request<{ access_token: string; user: User }>('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
       });
       this.setToken(res.access_token);
+      localStorage.setItem('annapurna_current_user', JSON.stringify(res.user));
       return res;
     } catch {
-      // Fallback role-aware mock login for offline / pending credentials mode
-      let mockRole: UserRole = 'SUPER_ADMIN';
-      let mockName = 'Principal Arnab Senapati';
-      let mockAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150';
+      // Offline / fallback credential check against registered accounts directory
+      const accounts = this.getRegisteredAccounts();
+      const matched = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
 
-      const lowerEmail = email.toLowerCase();
-      if (lowerEmail.includes('faculty') || lowerEmail.includes('teacher') || lowerEmail.includes('ria') || lowerEmail.includes('debabrata')) {
-        mockRole = 'FACULTY';
-        mockName = 'Ms. Ria Sharma (B.Ed. Faculty)';
-        mockAvatar = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150';
-      } else if (lowerEmail.includes('student') || lowerEmail.includes('trainee') || lowerEmail.includes('ananya')) {
-        mockRole = 'STUDENT';
-        mockName = 'Ananya Das (B.Ed. Trainee)';
-        mockAvatar = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150';
+      if (!matched || matched.password !== cleanPassword) {
+        throw new Error('Invalid email or password credentials. Access denied.');
       }
 
-      const mockUser: User = {
-        id: `user-${Date.now()}`,
-        email: email || 'admin@annapurnacollege.org',
-        full_name: mockName,
-        role: mockRole,
-        avatar_url: mockAvatar,
-        is_active: true,
+      if (!matched.is_active) {
+        throw new Error('This account has been deactivated. Please contact the administrator.');
+      }
+
+      const user: User = {
+        id: matched.id,
+        email: matched.email,
+        full_name: matched.full_name,
+        role: matched.role,
+        avatar_url: matched.avatar_url,
+        is_active: matched.is_active,
       };
-      this.setToken('mock_jwt_token_annapurna');
-      return { access_token: 'mock_jwt_token_annapurna', user: mockUser };
+
+      const mockToken = `mock_token_${matched.id}`;
+      this.setToken(mockToken);
+      localStorage.setItem('annapurna_current_user', JSON.stringify(user));
+      return { access_token: mockToken, user };
     }
   }
 
@@ -239,15 +343,45 @@ class ApiClient {
     try {
       return await this.request<User>('/auth/me');
     } catch {
+      const saved = localStorage.getItem('annapurna_current_user');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {}
+      }
       return {
         id: 'admin-1',
-        email: 'admin@annapurnacollege.org',
-        full_name: 'Principal Arnab Senapati',
+        email: 'admin@annapurnacollege.edu.in',
+        full_name: 'Dr. Arnab Senapati, Principal',
         role: 'SUPER_ADMIN',
         avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
         is_active: true,
       };
     }
+  }
+
+  async changePassword(email: string, currentPass: string, newPass: string): Promise<boolean> {
+    try {
+      await this.request('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password: currentPass, new_password: newPass }),
+      });
+    } catch {
+      // offline / client-side update fallback
+    }
+
+    const accounts = this.getRegisteredAccounts();
+    const idx = accounts.findIndex((a) => a.email.toLowerCase() === email.trim().toLowerCase());
+    if (idx === -1) {
+      throw new Error('User account not found.');
+    }
+    if (accounts[idx].password !== currentPass) {
+      throw new Error('Current security password does not match.');
+    }
+
+    accounts[idx].password = newPass;
+    this.saveRegisteredAccounts(accounts);
+    return true;
   }
 
   // --- STUDENTS ---
@@ -273,18 +407,22 @@ class ApiClient {
     }
   }
 
-  async createStudent(data: Partial<Student>): Promise<Student> {
+  async createStudent(data: Partial<Student>): Promise<Student & { generated_password?: string }> {
+    const generated_password = `Amce#Stud${Math.floor(1000 + Math.random() * 9000)}`;
+    let createdStudent: Student;
+
     try {
-      return await this.request<Student>('/students', {
+      const res = await this.request<any>('/students', {
         method: 'POST',
         body: JSON.stringify(data),
       });
+      createdStudent = res;
     } catch {
-      const newStudent: Student = {
+      createdStudent = {
         id: `st-${Date.now()}`,
         roll_number: data.roll_number || `AMC-BED-2024-${this.students.length + 10}`,
         full_name: data.full_name || 'New Trainee',
-        email: data.email || 'student@annapurnacollege.org',
+        email: data.email || `trainee.${Date.now()}@student.annapurnacollege.org`,
         phone: data.phone || '+91 9999999999',
         course_code: data.course_code || 'BED',
         course_name: 'Bachelor of Education (B.Ed.)',
@@ -298,10 +436,32 @@ class ApiClient {
         guardian_relation: data.guardian_relation || 'Parent',
         status: 'ACTIVE',
         avatar_url: `https://api.dicebear.com/7.x/adventurer/svg?seed=${data.roll_number || 'AMC'}`,
+        created_at: new Date().toISOString(),
       };
-      this.students.unshift(newStudent);
-      return newStudent;
+      this.students.unshift(createdStudent);
     }
+
+    const accounts = this.getRegisteredAccounts();
+    const existingIdx = accounts.findIndex((a) => a.email.toLowerCase() === createdStudent.email.toLowerCase());
+    const newAccount: RegisteredAccount = {
+      id: `user-${createdStudent.id}`,
+      email: createdStudent.email,
+      password: generated_password,
+      role: 'STUDENT',
+      full_name: createdStudent.full_name,
+      avatar_url: createdStudent.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+      is_active: true,
+      roll_number: createdStudent.roll_number,
+    };
+
+    if (existingIdx >= 0) {
+      accounts[existingIdx] = newAccount;
+    } else {
+      accounts.push(newAccount);
+    }
+    this.saveRegisteredAccounts(accounts);
+
+    return { ...createdStudent, generated_password };
   }
 
   // --- FACULTY ---
@@ -311,6 +471,59 @@ class ApiClient {
     } catch {
       return { items: this.faculty, total: this.faculty.length };
     }
+  }
+
+  async createFaculty(data: Partial<Faculty>): Promise<Faculty & { generated_password?: string }> {
+    const generated_password = `Amce#Teach${Math.floor(1000 + Math.random() * 9000)}`;
+    let createdFaculty: Faculty;
+
+    try {
+      const res = await this.request<any>('/faculty', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      createdFaculty = res;
+    } catch {
+      createdFaculty = {
+        id: `fac-${Date.now()}`,
+        employee_id: data.employee_id || `AMC-FAC-00${this.faculty.length + 1}`,
+        full_name: data.full_name || 'Faculty Member',
+        email: data.email || `faculty.${Date.now()}@annapurnacollege.edu.in`,
+        phone: data.phone || '+91 9876543210',
+        department: data.department || 'Department of Teacher Education',
+        designation: data.designation || 'Assistant Professor',
+        qualification: data.qualification || 'M.Ed., Ph.D.',
+        specialization: data.specialization || 'Pedagogy of Education',
+        assigned_subjects: data.assigned_subjects || [],
+        status: 'ACTIVE',
+        is_active: true,
+        avatar_url: `https://api.dicebear.com/7.x/micah/svg?seed=${data.employee_id || 'FAC'}`,
+        created_at: new Date().toISOString(),
+      };
+      this.faculty.unshift(createdFaculty);
+    }
+
+    const accounts = this.getRegisteredAccounts();
+    const existingIdx = accounts.findIndex((a) => a.email.toLowerCase() === createdFaculty.email.toLowerCase());
+    const newAccount: RegisteredAccount = {
+      id: `user-${createdFaculty.id}`,
+      email: createdFaculty.email,
+      password: generated_password,
+      role: 'FACULTY',
+      full_name: createdFaculty.full_name,
+      avatar_url: createdFaculty.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+      is_active: true,
+      department: createdFaculty.department,
+    };
+
+    if (existingIdx >= 0) {
+      accounts[existingIdx] = newAccount;
+    } else {
+      accounts.push(newAccount);
+    }
+    this.saveRegisteredAccounts(accounts);
+
+    return { ...createdFaculty, generated_password };
   }
 
   // --- ACADEMICS ---

@@ -32,6 +32,7 @@ import {
 } from 'recharts';
 import { SoundButton } from '../common/SoundButton';
 import { useSound } from '../../context/SoundContext';
+import { useAuth } from '../../context/AuthContext';
 import collegeLogo from '../../assets/logo.png';
 
 interface TeacherDashboardViewProps {
@@ -40,6 +41,7 @@ interface TeacherDashboardViewProps {
 
 export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNavigate }) => {
   const { playHaptic, playTab, playPop, playSuccess } = useSound();
+  const { user } = useAuth();
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(20);
 
   // Homework Submissions Donut Data
@@ -192,7 +194,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
 
                 <div className="space-y-1.5 text-left">
                   <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                    Good morning, Dr. Debabrata Roy!
+                    Good morning, {user?.full_name?.split(' ')[0] ? `${user.full_name}` : 'Ms. Ria'}! 👋
                   </h1>
                   <p className="text-xs font-medium text-slate-500">
                     Empower minds. Inspire futures.

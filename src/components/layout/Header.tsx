@@ -11,22 +11,35 @@ import {
   Shield,
   GraduationCap,
   Users,
+  KeyRound,
+  CheckCircle2,
 } from 'lucide-react';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getCurrentLiveIST } from '../../utils/date';
+import { api } from '../../services/api';
+import { Modal } from '../common/Modal';
+import { SoundButton } from '../common/SoundButton';
 
 interface HeaderProps {
   onOpenSearch: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
-  const { soundEnabled, toggleSound, playHaptic, playPop } = useSound();
+  const { soundEnabled, toggleSound, playHaptic, playPop, playSuccess, playAlert } = useSound();
   const { user, activeRole, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
 
   const [istTime, setIstTime] = useState(getCurrentLiveIST());
+
+  // Change Password state
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [currPass, setCurrPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -168,6 +181,24 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
           </div>
         </div>
 
+        {/* Change Password Button */}
+        <button
+          type="button"
+          onClick={() => {
+            playPop();
+            setPasswordError(null);
+            setPasswordSuccess(false);
+            setCurrPass('');
+            setNewPass('');
+            setConfirmPass('');
+            setIsChangePasswordOpen(true);
+          }}
+          title="Change institutional password"
+          className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-all shadow-2xs"
+        >
+          <KeyRound className="w-4 h-4" />
+        </button>
+
         {/* Sign Out / Logout Button */}
         <button
           type="button"
@@ -178,6 +209,113 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
           <LogOut className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Change Password Modal */}
+      <Modal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+        title="Change Security Password"
+        subtitle={`Account: ${user?.email || ''}`}
+        maxWidth="sm"
+      >
+        {passwordSuccess ? (
+          <div className="py-6 text-center space-y-2">
+            <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <h4 className="text-sm font-bold text-slate-900 dark:text-white">Password Updated Successfully!</h4>
+            <p className="text-xs text-slate-500">Your new institutional credentials are now active.</p>
+          </div>
+        ) : (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setPasswordError(null);
+              if (newPass !== confirmPass) {
+                playAlert();
+                setPasswordError('New password and confirm password do not match.');
+                return;
+              }
+              if (newPass.length < 6) {
+                playAlert();
+                setPasswordError('New password must be at least 6 characters long.');
+                return;
+              }
+              try {
+                await api.changePassword(user?.email || '', currPass, newPass);
+                playSuccess();
+                setPasswordSuccess(true);
+                setTimeout(() => {
+                  setIsChangePasswordOpen(false);
+                }, 1800);
+              } catch (err: any) {
+                playAlert();
+                setPasswordError(err.message || 'Failed to change password. Check your current password.');
+              }
+            }}
+            className="space-y-3.5 text-xs"
+          >
+            {passwordError && (
+              <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-semibold">
+                {passwordError}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Current Password *
+              </label>
+              <input
+                type="password"
+                required
+                value={currPass}
+                onChange={(e) => setCurrPass(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:border-blue-600"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                New Password *
+              </label>
+              <input
+                type="password"
+                required
+                value={newPass}
+                onChange={(e) => setNewPass(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:border-blue-600"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Confirm New Password *
+              </label>
+              <input
+                type="password"
+                required
+                value={confirmPass}
+                onChange={(e) => setConfirmPass(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:border-blue-600"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <SoundButton
+                type="button"
+                onClick={() => setIsChangePasswordOpen(false)}
+                variant="secondary"
+                size="sm"
+              >
+                Cancel
+              </SoundButton>
+              <SoundButton type="submit" variant="primary" size="sm" soundType="success">
+                Update Password
+              </SoundButton>
+            </div>
+          </form>
+        )}
+      </Modal>
     </header>
   );
 };

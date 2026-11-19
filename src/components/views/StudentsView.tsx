@@ -13,6 +13,8 @@ import {
   Download,
   Edit3,
   Trash2,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { Student } from '../../types';
 import { api } from '../../services/api';
@@ -28,6 +30,14 @@ export const StudentsView: React.FC = () => {
   const [courseFilter, setCourseFilter] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    name: string;
+    email: string;
+    password: string;
+    roll: string;
+    role: string;
+  } | null>(null);
+  const [hasCopied, setHasCopied] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const { playSuccess, playPop } = useSound();
   const { isSuperAdmin } = useAuth();
@@ -72,7 +82,7 @@ export const StudentsView: React.FC = () => {
   const handleEnrollSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.createStudent({
+      const res = await api.createStudent({
         roll_number: newRoll.trim(),
         full_name: newName.trim(),
         email: newEmail.trim(),
@@ -90,6 +100,13 @@ export const StudentsView: React.FC = () => {
 
       playSuccess();
       setIsEnrollModalOpen(false);
+      setCreatedCredentials({
+        name: res.full_name,
+        email: res.email,
+        password: res.generated_password || 'Amce#Stud2024!',
+        roll: res.roll_number,
+        role: 'Teacher Trainee (Student)',
+      });
       resetNewForm();
       loadStudents();
     } catch (err: any) {
@@ -662,6 +679,77 @@ export const StudentsView: React.FC = () => {
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>Edit This Trainee</span>
               </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Generated Student Access Credentials Modal */}
+      {createdCredentials && (
+        <Modal
+          isOpen={true}
+          onClose={() => setCreatedCredentials(null)}
+          title="Student Trainee Credentials Generated"
+          subtitle="Official Admission Onboarding Notice"
+          maxWidth="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300">
+              <span className="font-bold block">
+                Trainee Enrolled & Account Created Successfully!
+              </span>
+              <span className="text-[11px] block mt-0.5">
+                The trainee has been registered and admission welcome email dispatched via Resend.
+              </span>
+            </div>
+
+            <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono">
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Trainee Name</span>
+                <span className="font-bold text-slate-900 dark:text-white font-sans">{createdCredentials.name}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Roll Number</span>
+                <span className="text-blue-600 dark:text-blue-400 font-bold">{createdCredentials.roll}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Registered Student Email</span>
+                <span className="text-slate-800 dark:text-slate-200 font-bold">{createdCredentials.email}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Temporary Security Password</span>
+                <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-700 mt-0.5">
+                  <span className="font-bold text-purple-600 dark:text-purple-400">{createdCredentials.password}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        `Roll: ${createdCredentials.roll}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`
+                      );
+                      setHasCopied(true);
+                      setTimeout(() => setHasCopied(false), 2000);
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-sans font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200"
+                  >
+                    {hasCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    <span>{hasCopied ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 italic">
+              * The student can log in and update their password anytime through their student profile.
+            </p>
+
+            <div className="flex justify-end pt-2">
+              <SoundButton
+                onClick={() => setCreatedCredentials(null)}
+                variant="primary"
+                size="sm"
+              >
+                Close & Done
+              </SoundButton>
             </div>
           </div>
         </Modal>

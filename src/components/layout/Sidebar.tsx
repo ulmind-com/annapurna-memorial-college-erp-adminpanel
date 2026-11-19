@@ -165,6 +165,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView }) =
         })}
       </nav>
 
+      {/* Meet Nova AI Assistant Card matching Image 2 */}
+      <div className="p-3 mx-3 mb-2 rounded-2xl bg-gradient-to-b from-blue-50/80 to-indigo-50/80 dark:from-slate-800/70 dark:to-slate-800/90 border border-blue-100 dark:border-slate-700/80 shadow-2xs flex-shrink-0">
+        <div className="flex items-start gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-xs font-black text-slate-900 dark:text-white leading-tight">
+              Meet Nova AI
+            </h4>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+              Your AI Teaching Assistant for smarter teaching.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            playHaptic();
+            onSelectView('quiz-builder');
+          }}
+          className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5"
+        >
+          Chat with Nova AI
+        </button>
+      </div>
+
       {/* Bottom Legal / Institution Footprint */}
       <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 flex-shrink-0">
         <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 text-center">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Plus, Mail, Phone, BookOpen, GraduationCap, CheckCircle, Edit3, Trash2 } from 'lucide-react';
+import { Users, Search, Plus, Mail, Phone, BookOpen, GraduationCap, CheckCircle, Edit3, Trash2, KeyRound, Copy, Check } from 'lucide-react';
 import { Faculty } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
@@ -12,6 +12,13 @@ export const FacultyView: React.FC = () => {
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    name: string;
+    email: string;
+    password: string;
+    role: string;
+  } | null>(null);
+  const [hasCopied, setHasCopied] = useState(false);
   const { playSuccess, playPop } = useSound();
 
   // Add Form
@@ -47,33 +54,38 @@ export const FacultyView: React.FC = () => {
     loadFaculty();
   }, []);
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !empId || !email) return;
 
-    const newFac: Faculty = {
-      id: `fac-${Date.now()}`,
-      employee_id: empId,
-      full_name: name,
-      email,
-      phone: phone || '+91 9876543210',
-      department,
-      designation,
-      qualification,
-      specialization,
-      assigned_subjects: [],
-      status: 'ACTIVE',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    };
+    try {
+      const res = await api.createFaculty({
+        employee_id: empId,
+        full_name: name,
+        email,
+        phone: phone || '+91 9876543210',
+        department,
+        designation,
+        qualification,
+        specialization,
+      });
 
-    setFaculty([newFac, ...faculty]);
-    playSuccess();
-    setIsAddModalOpen(false);
-    setName('');
-    setEmpId('');
-    setEmail('');
-    setPhone('');
+      setFaculty([res, ...faculty]);
+      playSuccess();
+      setIsAddModalOpen(false);
+      setCreatedCredentials({
+        name: res.full_name,
+        email: res.email,
+        password: res.generated_password || 'Amce#Teach2024!',
+        role: 'Faculty / Assistant Professor',
+      });
+      setName('');
+      setEmpId('');
+      setEmail('');
+      setPhone('');
+    } catch (err: any) {
+      alert(err.message || 'Failed to add faculty');
+    }
   };
 
   const handleOpenEdit = (f: Faculty) => {
@@ -462,6 +474,73 @@ export const FacultyView: React.FC = () => {
               </SoundButton>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Generated Access Credentials Modal */}
+      {createdCredentials && (
+        <Modal
+          isOpen={true}
+          onClose={() => setCreatedCredentials(null)}
+          title="Faculty Portal Credentials Generated"
+          subtitle="Secure Onboarding Information"
+          maxWidth="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300">
+              <span className="font-bold block">
+                Official Access Account Created Successfully!
+              </span>
+              <span className="text-[11px] block mt-0.5">
+                The faculty member has been registered and onboarding email dispatched via Resend.
+              </span>
+            </div>
+
+            <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono">
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Faculty Name</span>
+                <span className="font-bold text-slate-900 dark:text-white font-sans">{createdCredentials.name}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Registered Login Email</span>
+                <span className="text-blue-600 dark:text-blue-400 font-bold">{createdCredentials.email}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Temporary Security Password</span>
+                <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-700 mt-0.5">
+                  <span className="font-bold text-purple-600 dark:text-purple-400">{createdCredentials.password}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        `Email: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`
+                      );
+                      setHasCopied(true);
+                      setTimeout(() => setHasCopied(false), 2000);
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-sans font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200"
+                  >
+                    {hasCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                    <span>{hasCopied ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 italic">
+              * The faculty member can log in and update their password anytime through their profile settings.
+            </p>
+
+            <div className="flex justify-end pt-2">
+              <SoundButton
+                onClick={() => setCreatedCredentials(null)}
+                variant="primary"
+                size="sm"
+              >
+                Close & Done
+              </SoundButton>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
