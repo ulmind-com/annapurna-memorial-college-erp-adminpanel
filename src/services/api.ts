@@ -30,7 +30,8 @@ import {
   mockAuditLogs,
 } from './mockData';
 
-const BASE_URL = 'http://localhost:8000/api/v1';
+const DEFAULT_API_URL = 'https://annapurna-memorial-college-erp-adminpanel.onrender.com/api/v1';
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, '');
 
 class ApiClient {
   private token: string | null = null;
