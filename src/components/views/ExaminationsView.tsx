@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import {
   FileCheck2,
   CheckCircle,
@@ -17,6 +18,8 @@ import {
   Edit3,
   Award,
   CheckCircle2,
+  FileSpreadsheet,
+  Sliders,
 } from 'lucide-react';
 import { Marksheet, MarksheetStatus, Examination } from '../../types';
 import { api } from '../../services/api';
@@ -42,6 +45,19 @@ export const ExaminationsView: React.FC = () => {
   const [editingMarksheet, setEditingMarksheet] = useState<Marksheet | null>(null);
   const [editScores, setEditScores] = useState<any[]>([]);
   const [editRemarks, setEditRemarks] = useState<string>('');
+
+  // Marksheet Template Configuration (Module C.5)
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [templateConfig, setTemplateConfig] = useState({
+    format_title: 'OFFICIAL STATEMENT OF MARKS',
+    grading_scale: '10-Point UGC/BSAEU Scale',
+    passing_percentage: 40,
+    distinction_percentage: 75,
+    show_qr_hash: true,
+    show_watermark_crest: true,
+    controller_signature_title: 'Controller of Examinations',
+    principal_signature_title: 'Principal & Chief Academic Officer',
+  });
 
   // Workflow Action Modal
   const [actionModal, setActionModal] = useState<{
@@ -143,6 +159,29 @@ export const ExaminationsView: React.FC = () => {
     } catch (err) {
       console.error('Download error:', err);
     }
+  };
+
+  const handleDownloadExcel = () => {
+    playSuccess();
+    const exportData = marksheets.map((m) => ({
+      'Roll Number': m.roll_number,
+      'Trainee Name': m.student_name,
+      'Course': m.course_name,
+      'Semester': m.semester,
+      'Academic Session': m.academic_session,
+      'Total Marks Obtained': m.total_marks_obtained,
+      'Max Marks': m.grand_max_marks || m.total_marks_maximum || 500,
+      'Percentage': m.overall_percentage || m.percentage || 0,
+      'SGPA': m.sgpa,
+      'Letter Grade': m.letter_grade,
+      'Result Status': m.result_status,
+      'Approval Status': m.status,
+      'Verification Hash': m.qr_code_hash,
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Student Marks');
+    XLSX.writeFile(wb, `AMCE_Student_Marks_Export_${selectedExamId}.xlsx`);
   };
 
   // Open Edit Scores Modal
@@ -414,8 +453,30 @@ export const ExaminationsView: React.FC = () => {
           </p>
         </div>
 
-        {/* Exam Select */}
-        <div className="flex items-center gap-2">
+        {/* Actions Desk: Excel Download, Template Config, Exam Select */}
+        <div className="flex flex-wrap items-center gap-2">
+          {isSuperAdmin && (
+            <SoundButton
+              onClick={() => setIsTemplateModalOpen(true)}
+              variant="secondary"
+              size="sm"
+              soundType="pop"
+              icon={<Sliders className="w-4 h-4 text-blue-600" />}
+            >
+              Configure Template
+            </SoundButton>
+          )}
+
+          <SoundButton
+            onClick={handleDownloadExcel}
+            variant="secondary"
+            size="sm"
+            soundType="pop"
+            icon={<FileSpreadsheet className="w-4 h-4 text-emerald-600" />}
+          >
+            Export All Marks (Excel)
+          </SoundButton>
+
           <select
             value={selectedExamId}
             onChange={(e) => setSelectedExamId(e.target.value)}
@@ -884,6 +945,126 @@ export const ExaminationsView: React.FC = () => {
             </SoundButton>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal: Marksheet Template Configuration (Module C.5) */}
+      <Modal
+        isOpen={isTemplateModalOpen}
+        onClose={() => setIsTemplateModalOpen(false)}
+        title="Official College Marksheet Template Designer"
+        subtitle="Configure official college marksheet layout, grading scale, and institutional signatures"
+        maxWidth="lg"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            playSuccess();
+            setIsTemplateModalOpen(false);
+            alert('Marksheet template configuration saved and active for new generation.');
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Document Main Header
+            </label>
+            <input
+              type="text"
+              required
+              value={templateConfig.format_title}
+              onChange={(e) => setTemplateConfig({ ...templateConfig, format_title: e.target.value })}
+              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Grading System Scale
+              </label>
+              <select
+                value={templateConfig.grading_scale}
+                onChange={(e) => setTemplateConfig({ ...templateConfig, grading_scale: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
+              >
+                <option value="10-Point UGC/BSAEU Scale">10-Point UGC / BSAEU SGPA Scale</option>
+                <option value="Percentage Based">Absolute Marks Percentage</option>
+                <option value="7-Point NCTE Standard">7-Point NCTE Standard</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Minimum Pass Threshold (%)
+              </label>
+              <input
+                type="number"
+                min={30}
+                max={50}
+                value={templateConfig.passing_percentage}
+                onChange={(e) => setTemplateConfig({ ...templateConfig, passing_percentage: Number(e.target.value) })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Controller Signature Title
+              </label>
+              <input
+                type="text"
+                value={templateConfig.controller_signature_title}
+                onChange={(e) => setTemplateConfig({ ...templateConfig, controller_signature_title: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Principal Signature Title
+              </label>
+              <input
+                type="text"
+                value={templateConfig.principal_signature_title}
+                onChange={(e) => setTemplateConfig({ ...templateConfig, principal_signature_title: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 pt-2">
+            <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-bold cursor-pointer">
+              <input
+                type="checkbox"
+                checked={templateConfig.show_watermark_crest}
+                onChange={(e) => setTemplateConfig({ ...templateConfig, show_watermark_crest: e.target.checked })}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              Show Official College Watermark Crest
+            </label>
+
+            <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-bold cursor-pointer">
+              <input
+                type="checkbox"
+                checked={templateConfig.show_qr_hash}
+                onChange={(e) => setTemplateConfig({ ...templateConfig, show_qr_hash: e.target.checked })}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              Embed Dynamic Verification QR
+            </label>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <SoundButton type="button" onClick={() => setIsTemplateModalOpen(false)} variant="secondary" size="sm">
+              Cancel
+            </SoundButton>
+            <SoundButton type="submit" variant="primary" size="sm" soundType="success">
+              Save Marksheet Template
+            </SoundButton>
+          </div>
+        </form>
       </Modal>
     </div>
   );

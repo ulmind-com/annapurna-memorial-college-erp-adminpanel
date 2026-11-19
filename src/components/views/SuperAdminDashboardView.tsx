@@ -3,7 +3,7 @@ import {
   ShieldCheck,
   GraduationCap,
   Users,
-  CreditCard,
+  ClipboardList,
   FileCheck2,
   MapPin,
   TrendingUp,
@@ -32,7 +32,7 @@ import {
   Cell,
 } from 'recharts';
 import { api } from '../../services/api';
-import { Marksheet, FeeOverview } from '../../types';
+import { Marksheet } from '../../types';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
@@ -44,7 +44,6 @@ interface SuperAdminDashboardViewProps {
 
 export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = ({ onNavigate }) => {
   const [marksheets, setMarksheets] = useState<Marksheet[]>([]);
-  const [feeOverview, setFeeOverview] = useState<FeeOverview | null>(null);
   const [selectedDistrict, setSelectedDistrict] = useState<string>('Kakdwip');
   const { playHaptic, playApprove, playSuccess, playPop } = useSound();
 
@@ -83,12 +82,8 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
   useEffect(() => {
     const load = async () => {
       try {
-        const [ms, fees] = await Promise.all([
-          api.getExamMarksheets('exam-1'),
-          api.getFeeOverview(),
-        ]);
+        const ms = await api.getExamMarksheets('exam-1');
         setMarksheets(ms);
-        setFeeOverview(fees);
       } catch (e) {
         console.error(e);
       }
@@ -217,17 +212,17 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
         <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Fee Collections
+              Monitored Assignments
             </span>
             <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
-              <CreditCard className="w-5 h-5" />
+              <ClipboardList className="w-5 h-5" />
             </div>
           </div>
           <div className="text-2xl font-black text-slate-900 dark:text-white mt-2">
-            ₹{feeOverview ? feeOverview.total_collected.toLocaleString() : '1,40,000'}
+            16 Tasks
           </div>
           <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">
-            {feeOverview ? feeOverview.collection_rate : 66.7}% Reconciled
+            96.8% Trainee Submission Rate
           </div>
         </div>
 

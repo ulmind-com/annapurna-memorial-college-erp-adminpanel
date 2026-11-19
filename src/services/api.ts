@@ -15,6 +15,9 @@ import {
   Notice,
   StudyMaterial,
   AuditLog,
+  LeaveApplication,
+  StudentFeedback,
+  ClassAnnouncement,
 } from '../types';
 import {
   mockCourses,
@@ -45,6 +48,89 @@ class ApiClient {
   private notices = [...mockNotices];
   private invoices = [...mockInvoices];
   private auditLogs = [...mockAuditLogs];
+  private leaveApplications: LeaveApplication[] = [
+    {
+      id: 'leave-1',
+      student_id: 'st-1',
+      student_name: 'Ananya Das',
+      roll_number: 'AMC-BED-2024-001',
+      course_code: 'BED',
+      semester: 1,
+      leave_type: 'MEDICAL',
+      start_date: '2026-11-20',
+      end_date: '2026-11-22',
+      total_days: 3,
+      reason: 'Suffering from seasonal viral fever and advised clinical bed rest.',
+      status: 'APPROVED',
+      applied_at: '2026-11-18T10:30:00Z',
+      reviewed_by: 'Dr. Debabrata Roy',
+      reviewed_at: '2026-11-18T14:15:00Z',
+      remarks: 'Approved. Submit medical prescription upon return.',
+    },
+    {
+      id: 'leave-2',
+      student_id: 'st-2',
+      student_name: 'Subhashish Mondal',
+      roll_number: 'AMC-BED-2024-002',
+      course_code: 'BED',
+      semester: 1,
+      leave_type: 'ACADEMIC',
+      start_date: '2026-11-25',
+      end_date: '2026-11-26',
+      total_days: 2,
+      reason: 'Attending State Pedagogy & B.Ed. Educational Conference at Kolkata.',
+      status: 'PENDING',
+      applied_at: '2026-11-19T09:00:00Z',
+    },
+  ];
+  private feedbacks: StudentFeedback[] = [
+    {
+      id: 'fb-1',
+      student_id: 'st-1',
+      student_name: 'Ananya Das',
+      roll_number: 'AMC-BED-2024-001',
+      course_code: 'BED',
+      semester: 1,
+      subject_code: 'BED-101',
+      faculty_name: 'Dr. Debabrata Roy',
+      category: 'TEACHING_METHODOLOGY',
+      rating: 5,
+      comments: 'Excellent explanation of cognitive development theory and case studies in B.Ed. classroom sessions.',
+      is_anonymous: false,
+      status: 'RESOLVED',
+      created_at: '2026-11-15T11:20:00Z',
+      admin_response: 'Appreciated! Noted by Academic Council.',
+    },
+    {
+      id: 'fb-2',
+      student_id: 'st-3',
+      student_name: 'Priyanka Halder',
+      roll_number: 'AMC-BED-2024-003',
+      course_code: 'BED',
+      semester: 1,
+      category: 'PRACTICUM_LAB',
+      rating: 4,
+      comments: 'Need more micro-teaching practice sessions before the final school internship starts.',
+      is_anonymous: true,
+      status: 'PENDING',
+      created_at: '2026-11-18T16:45:00Z',
+    },
+  ];
+  private announcements: ClassAnnouncement[] = [
+    {
+      id: 'ann-1',
+      faculty_id: 'fac-1',
+      faculty_name: 'Dr. Debabrata Roy',
+      course_code: 'BED',
+      semester: 1,
+      subject_code: 'BED-101',
+      batch: 'Section A',
+      title: 'Micro-Teaching Practicum Schedule Update',
+      message: 'All B.Ed. Semester 1 Trainees must submit their unit pedagogy lesson plan notebook by Friday.',
+      priority: 'IMPORTANT',
+      created_at: '2026-11-19T08:30:00Z',
+    },
+  ];
   private collegeProfile = {
     name: 'Annapurna Memorial College of Education',
     tagline: 'Premier Teacher Training & Pedagogy Institution',
@@ -736,6 +822,162 @@ class ApiClient {
       return await this.request<{ items: AuditLog[]; total: number }>('/audit');
     } catch {
       return { items: this.auditLogs, total: this.auditLogs.length };
+    }
+  }
+  // --- LEAVE APPLICATION MANAGEMENT (MODULE A.6 & C) ---
+  async getLeaveApplications(student_id?: string): Promise<LeaveApplication[]> {
+    try {
+      const qs = student_id ? `?student_id=${student_id}` : '';
+      return await this.request<LeaveApplication[]>(`/leaves${qs}`);
+    } catch {
+      return student_id
+        ? this.leaveApplications.filter((l) => l.student_id === student_id || l.roll_number === student_id)
+        : this.leaveApplications;
+    }
+  }
+
+  async applyForLeave(data: Partial<LeaveApplication>): Promise<LeaveApplication> {
+    try {
+      return await this.request<LeaveApplication>('/leaves', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const newLeave: LeaveApplication = {
+        id: `leave-${Date.now()}`,
+        student_id: data.student_id || 'st-1',
+        student_name: data.student_name || 'Ananya Das',
+        roll_number: data.roll_number || 'AMC-BED-2024-001',
+        course_code: data.course_code || 'BED',
+        semester: Number(data.semester) || 1,
+        leave_type: data.leave_type || 'MEDICAL',
+        start_date: data.start_date || new Date().toISOString().split('T')[0],
+        end_date: data.end_date || new Date().toISOString().split('T')[0],
+        total_days: Number(data.total_days) || 1,
+        reason: data.reason || 'Medical Leave',
+        status: 'PENDING',
+        applied_at: new Date().toISOString(),
+      };
+      this.leaveApplications.unshift(newLeave);
+      return newLeave;
+    }
+  }
+
+  async reviewLeaveApplication(
+    id: string,
+    status: 'APPROVED' | 'REJECTED',
+    remarks: string,
+    reviewer_name: string
+  ): Promise<LeaveApplication> {
+    try {
+      return await this.request<LeaveApplication>(`/leaves/${id}/review`, {
+        method: 'POST',
+        body: JSON.stringify({ status, remarks, reviewer_name }),
+      });
+    } catch {
+      const idx = this.leaveApplications.findIndex((l) => l.id === id);
+      if (idx !== -1) {
+        this.leaveApplications[idx] = {
+          ...this.leaveApplications[idx],
+          status,
+          remarks,
+          reviewed_by: reviewer_name,
+          reviewed_at: new Date().toISOString(),
+        };
+        return this.leaveApplications[idx];
+      }
+      throw new Error('Leave application not found');
+    }
+  }
+
+  // --- STUDENT FEEDBACK SYSTEM (MODULE A.7 & C.11) ---
+  async getStudentFeedbacks(): Promise<StudentFeedback[]> {
+    try {
+      return await this.request<StudentFeedback[]>('/feedback');
+    } catch {
+      return this.feedbacks;
+    }
+  }
+
+  async submitFeedback(data: Partial<StudentFeedback>): Promise<StudentFeedback> {
+    try {
+      return await this.request<StudentFeedback>('/feedback', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const newFb: StudentFeedback = {
+        id: `fb-${Date.now()}`,
+        student_id: data.student_id || 'st-1',
+        student_name: data.is_anonymous ? 'Anonymous Trainee' : (data.student_name || 'Ananya Das'),
+        roll_number: data.is_anonymous ? 'ANON' : (data.roll_number || 'AMC-BED-2024-001'),
+        course_code: data.course_code || 'BED',
+        semester: Number(data.semester) || 1,
+        subject_code: data.subject_code,
+        faculty_name: data.faculty_name,
+        category: data.category || 'CURRICULUM',
+        rating: Number(data.rating) || 5,
+        comments: data.comments || '',
+        is_anonymous: !!data.is_anonymous,
+        status: 'PENDING',
+        created_at: new Date().toISOString(),
+      };
+      this.feedbacks.unshift(newFb);
+      return newFb;
+    }
+  }
+
+  async respondToFeedback(id: string, response: string): Promise<StudentFeedback> {
+    try {
+      return await this.request<StudentFeedback>(`/feedback/${id}/respond`, {
+        method: 'POST',
+        body: JSON.stringify({ response }),
+      });
+    } catch {
+      const idx = this.feedbacks.findIndex((f) => f.id === id);
+      if (idx !== -1) {
+        this.feedbacks[idx] = {
+          ...this.feedbacks[idx],
+          admin_response: response,
+          status: 'RESOLVED',
+        };
+        return this.feedbacks[idx];
+      }
+      throw new Error('Feedback not found');
+    }
+  }
+
+  // --- CLASS ANNOUNCEMENTS & COMMUNICATION (MODULE B.5) ---
+  async getClassAnnouncements(): Promise<ClassAnnouncement[]> {
+    try {
+      return await this.request<ClassAnnouncement[]>('/announcements');
+    } catch {
+      return this.announcements;
+    }
+  }
+
+  async createClassAnnouncement(data: Partial<ClassAnnouncement>): Promise<ClassAnnouncement> {
+    try {
+      return await this.request<ClassAnnouncement>('/announcements', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const ann: ClassAnnouncement = {
+        id: `ann-${Date.now()}`,
+        faculty_id: data.faculty_id || 'fac-1',
+        faculty_name: data.faculty_name || 'Dr. Debabrata Roy',
+        course_code: data.course_code || 'BED',
+        semester: Number(data.semester) || 1,
+        subject_code: data.subject_code,
+        batch: data.batch || 'All Sections',
+        title: data.title || 'Class Announcement',
+        message: data.message || '',
+        priority: data.priority || 'NORMAL',
+        created_at: new Date().toISOString(),
+      };
+      this.announcements.unshift(ann);
+      return ann;
     }
   }
 }

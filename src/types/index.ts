@@ -217,6 +217,58 @@ export interface StudentAttendanceSummary {
   is_short_attendance: boolean;
 }
 
+export interface LeaveApplication {
+  id: string;
+  student_id: string;
+  student_name: string;
+  roll_number: string;
+  course_code: string;
+  semester: number;
+  leave_type: 'MEDICAL' | 'PERSONAL' | 'ACADEMIC' | 'EMERGENCY';
+  start_date: string;
+  end_date: string;
+  total_days: number;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  applied_at: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  remarks?: string;
+  document_url?: string;
+}
+
+export interface StudentFeedback {
+  id: string;
+  student_id: string;
+  student_name: string;
+  roll_number: string;
+  course_code: string;
+  semester: number;
+  subject_code?: string;
+  faculty_name?: string;
+  category: 'CURRICULUM' | 'TEACHING_METHODOLOGY' | 'PRACTICUM_LAB' | 'FACILITIES' | 'GENERAL';
+  rating: number;
+  comments: string;
+  is_anonymous: boolean;
+  status: 'PENDING' | 'REVIEWED' | 'RESOLVED';
+  created_at: string;
+  admin_response?: string;
+}
+
+export interface ClassAnnouncement {
+  id: string;
+  faculty_id: string;
+  faculty_name: string;
+  course_code: string;
+  semester: number;
+  subject_code?: string;
+  batch?: string;
+  title: string;
+  message: string;
+  priority: 'NORMAL' | 'IMPORTANT' | 'URGENT';
+  created_at: string;
+}
+
 export interface FeeStructure {
   id: string;
   title: string;

@@ -17,12 +17,15 @@ import { FacultyView } from './components/views/FacultyView';
 import { AcademicsView } from './components/views/AcademicsView';
 import { AttendanceView } from './components/views/AttendanceView';
 import { ExaminationsView } from './components/views/ExaminationsView';
-import { FeesView } from './components/views/FeesView';
 import { NoticesView } from './components/views/NoticesView';
 import { StudyMaterialsView } from './components/views/StudyMaterialsView';
 import { VerifyMarksheetView } from './components/views/VerifyMarksheetView';
 import { AuditLogsView } from './components/views/AuditLogsView';
 import { ExcelImportView } from './components/views/ExcelImportView';
+import { LeaveManagementView } from './components/views/LeaveManagementView';
+import { StudentFeedbackView } from './components/views/StudentFeedbackView';
+import { CommunicationAnnouncementsView } from './components/views/CommunicationAnnouncementsView';
+import { AcademicAnalyticsView } from './components/views/AcademicAnalyticsView';
 
 const AppContent: React.FC = () => {
   const { user, loading, activeRole } = useAuth();
@@ -81,8 +84,14 @@ const AppContent: React.FC = () => {
         return <AttendanceView />;
       case 'examinations':
         return <ExaminationsView />;
-      case 'fees':
-        return <FeesView />;
+      case 'leave-management':
+        return <LeaveManagementView />;
+      case 'feedback':
+        return <StudentFeedbackView />;
+      case 'communication':
+        return <CommunicationAnnouncementsView />;
+      case 'analytics':
+        return <AcademicAnalyticsView />;
       case 'notices':
         return <NoticesView />;
       case 'materials':

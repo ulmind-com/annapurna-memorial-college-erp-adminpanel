@@ -9,7 +9,6 @@ import {
   Brain,
   FileCheck2,
   Calendar,
-  CreditCard,
   Bell,
   Library,
   ShieldCheck,
@@ -18,6 +17,9 @@ import {
   Sparkles,
   ClipboardList,
   CheckSquare,
+  MessageSquare,
+  Megaphone,
+  BarChart3,
 } from 'lucide-react';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
@@ -31,30 +33,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView }) =
   const { playHaptic } = useSound();
   const { user, activeRole } = useAuth();
 
-  // Distinct Nav items per role with zero duplicate IDs!
+  // Distinct Nav items per role matching ERP Feature Specification strictly!
   const getNavItems = () => {
     if (activeRole === 'TEACHER') {
       return [
         { id: 'dashboard', label: 'Teacher Dashboard', icon: LayoutDashboard },
-        { id: 'my-classes', label: 'My Classes', icon: BookOpen },
-        { id: 'timetable', label: 'Timetable', icon: Calendar },
-        { id: 'attendance', label: 'Attendance Register', icon: CalendarCheck },
-        { id: 'lesson-plans', label: 'Lesson Plans', icon: FileText },
-        { id: 'assignments', label: 'Assignments', icon: ClipboardList },
-        { id: 'quiz-builder', label: 'AI Quiz Builder', icon: Brain },
-        { id: 'examinations', label: 'Results & Grades', icon: FileCheck2 },
+        { id: 'my-classes', label: 'My Assigned Classes', icon: BookOpen },
+        { id: 'timetable', label: 'Class Timetable', icon: Calendar },
+        { id: 'attendance', label: 'Daily Attendance Register', icon: CalendarCheck },
+        { id: 'lesson-plans', label: 'Lesson Plans & Practicum', icon: FileText },
+        { id: 'assignments', label: 'Assignment Management', icon: ClipboardList },
+        { id: 'communication', label: 'Class Announcements', icon: Megaphone },
+        { id: 'examinations', label: 'Marks & Student Evaluation', icon: FileCheck2 },
+        { id: 'leave-management', label: 'Trainee Leave Requests', icon: CheckSquare },
+        { id: 'materials', label: 'Study Materials & Notes', icon: Library },
         { id: 'notices', label: 'Circulars & Notices', icon: Bell },
-        { id: 'materials', label: 'Digital Library', icon: Library },
       ];
     }
 
     if (activeRole === 'STUDENT') {
       return [
         { id: 'dashboard', label: 'Trainee Portal', icon: LayoutDashboard },
+        { id: 'materials', label: 'Study Materials & Notes', icon: Library },
+        { id: 'examinations', label: 'Results & Marksheet', icon: FileCheck2 },
+        { id: 'assignments', label: 'My Assignments', icon: ClipboardList },
+        { id: 'timetable', label: 'Class & Exam Timetable', icon: Calendar },
         { id: 'attendance', label: '75% Attendance Meter', icon: CalendarCheck },
-        { id: 'examinations', label: 'Certified Marksheets', icon: FileCheck2 },
-        { id: 'fees', label: 'Fee Ledger & Invoices', icon: CreditCard },
-        { id: 'materials', label: 'Study Materials', icon: BookOpen },
+        { id: 'leave-management', label: 'Leave Applications', icon: CheckSquare },
+        { id: 'feedback', label: 'Academic Feedback', icon: MessageSquare },
         { id: 'notices', label: 'College Notices', icon: Bell },
         { id: 'verify', label: 'Verify Marksheet QR', icon: ShieldCheck },
       ];
@@ -63,17 +69,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView }) =
     // Default Super Admin / Admin
     return [
       { id: 'dashboard', label: 'Principal Console', icon: LayoutDashboard },
-      { id: 'students', label: 'Student Trainees', icon: GraduationCap },
-      { id: 'faculty', label: 'Faculty & Mentors', icon: Users },
-      { id: 'academics', label: 'Courses & Curriculum', icon: BookOpen },
+      { id: 'students', label: 'Student Management', icon: GraduationCap },
+      { id: 'faculty', label: 'Teacher / Faculty Desk', icon: Users },
+      { id: 'academics', label: 'Academic Structure & Courses', icon: BookOpen },
+      { id: 'examinations', label: 'Marksheets & Results', icon: FileCheck2 },
+      { id: 'assignments', label: 'Assignment Monitoring', icon: ClipboardList },
+      { id: 'timetable', label: 'Timetable & Academic Calendar', icon: Calendar },
       { id: 'attendance', label: 'Attendance Records', icon: CalendarCheck },
-      { id: 'examinations', label: 'Marksheet Approval Desk', icon: FileCheck2 },
-      { id: 'fees', label: 'Fee Structures & Accounts', icon: CreditCard },
+      { id: 'leave-management', label: 'Leave Sanction Desk', icon: CheckSquare },
+      { id: 'materials', label: 'Study Materials Vault', icon: Library },
+      { id: 'notices', label: 'Notices & Announcements', icon: Bell },
+      { id: 'feedback', label: 'Student Feedback Desk', icon: MessageSquare },
+      { id: 'analytics', label: 'Academic Analytics', icon: BarChart3 },
       { id: 'excel-import', label: 'Excel Bulk Data Import', icon: FileSpreadsheet },
-      { id: 'notices', label: 'Digital Circulars', icon: Bell },
-      { id: 'materials', label: 'Library Vault', icon: Library },
+      { id: 'audit', label: 'Activity Logs & Audit', icon: History },
       { id: 'verify', label: 'Public Marksheet Verifier', icon: ShieldCheck },
-      { id: 'audit', label: 'Security & Audit Logs', icon: History },
     ];
   };
 

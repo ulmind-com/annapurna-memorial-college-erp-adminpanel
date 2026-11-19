@@ -5,7 +5,6 @@ import {
   CheckCircle,
   FileCheck2,
   Download,
-  CreditCard,
   BookOpen,
   Award,
   Clock,
@@ -142,19 +141,19 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
           </div>
         </div>
 
-        {/* Fee Settlement Status */}
+        {/* Leave Application Status */}
         <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Fee Ledger Status
+              Leave Requests
             </span>
             <div className="p-2 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
-              <CreditCard className="w-4 h-4" />
+              <Clock className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">₹0 Due</div>
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">1 Cleared</div>
           <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
-            ₹35,000 Settled (Receipt Verified)
+            Official Absence Sanctioned
           </div>
         </div>
 
