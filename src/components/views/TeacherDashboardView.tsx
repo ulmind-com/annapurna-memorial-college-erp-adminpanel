@@ -58,13 +58,13 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
   ];
 
   const quickLinks = [
-    { label: 'Class Roster', view: 'students', icon: Users },
-    { label: 'Timetable', view: 'academics', icon: Calendar },
-    { label: 'Lesson Plans', view: 'materials', icon: BookOpen },
+    { label: 'Class Roster', view: 'my-classes', icon: Users },
+    { label: 'Timetable', view: 'timetable', icon: Calendar },
+    { label: 'Lesson Plans', view: 'lesson-plans', icon: BookOpen },
     { label: 'Attendance', view: 'attendance', icon: CheckCircle },
-    { label: 'Assignments', view: 'materials', icon: FileText },
+    { label: 'Assignments', view: 'assignments', icon: FileText },
     { label: 'Results', view: 'examinations', icon: FileCheck2 },
-    { label: 'AI Quiz Builder', view: 'materials', icon: Brain },
+    { label: 'AI Quiz Builder', view: 'quiz-builder', icon: Brain },
   ];
 
   const upcomingActivities = [
@@ -189,7 +189,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
 
                   <div className="pt-2">
                     <SoundButton
-                      onClick={() => onNavigate('academics')}
+                      onClick={() => onNavigate('my-classes')}
                       variant="primary"
                       size="sm"
                       soundType="haptic"
@@ -342,7 +342,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
             <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-sm font-bold text-slate-900">Homework Submissions</h3>
-                <span className="text-xs font-medium text-blue-600 cursor-pointer" onClick={() => onNavigate('materials')}>
+                <span className="text-xs font-medium text-blue-600 cursor-pointer" onClick={() => onNavigate('assignments')}>
                   View All
                 </span>
               </div>

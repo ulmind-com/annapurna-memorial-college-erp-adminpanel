@@ -90,17 +90,17 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
   };
 
   return (
-    <div className="space-y-6 text-slate-800">
+    <div className="space-y-6 text-slate-800 dark:text-slate-100">
       {/* Super Admin Executive Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 uppercase tracking-wider">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 uppercase tracking-wider">
               Executive Console
             </span>
-            <span className="text-xs text-slate-500 font-medium">BSAEU & NCTE Authority Desk</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">BSAEU & NCTE Authority Desk</span>
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1">
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-1">
             Super Admin & Principal Institutional Dashboard
           </h1>
         </div>
@@ -130,64 +130,64 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
 
       {/* KPI Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Total Enrolled Trainees
             </span>
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
               <GraduationCap className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2">128</div>
-          <div className="text-[11px] text-emerald-600 font-semibold mt-1">
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">128</div>
+          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
             100% NCTE Intake Filled
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Faculty & Academic Staff
             </span>
-            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+            <div className="p-2 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
               <Users className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2">18</div>
-          <div className="text-[11px] text-slate-500 mt-1">1:7 Teacher-Trainee Ratio</div>
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">18</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">1:7 Teacher-Trainee Ratio</div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Fee Collections
             </span>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
               <CreditCard className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2">
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">
             ₹{feeOverview ? feeOverview.total_collected.toLocaleString() : '1,40,000'}
           </div>
-          <div className="text-[11px] text-emerald-600 font-semibold mt-1">
+          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
             {feeOverview ? feeOverview.collection_rate : 66.7}% Reconciled
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Pending Marksheets
             </span>
-            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+            <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400">
               <FileCheck2 className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2">
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">
             {pendingApprovals.length}
           </div>
-          <div className="text-[11px] text-amber-600 font-semibold mt-1">
+          <div className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-1">
             Requires Principal Clearance
           </div>
         </div>

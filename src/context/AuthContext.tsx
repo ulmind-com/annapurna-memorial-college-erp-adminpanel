@@ -1,15 +1,20 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '../types';
+import { User, UserRole } from '../types';
 import { api } from '../services/api';
+
+export type ActiveRole = 'SUPER_ADMIN' | 'TEACHER' | 'STUDENT';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  activeRole: ActiveRole;
   login: (email: string, pass: string) => Promise<void>;
+  loginAsDemo: (role: ActiveRole) => Promise<void>;
   logout: () => void;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   isFaculty: boolean;
+  isStudent: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,25 +26,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initAuth = async () => {
       const token = api.getToken();
-      if (token) {
+      if (token && token !== 'null') {
         try {
           const profile = await api.getMe();
           setUser(profile);
         } catch {
-          // Token invalid
+          // Token invalid or expired
           api.setToken(null);
           setUser(null);
         }
       } else {
-        // Provide default superadmin user for immediate seamless interaction
-        setUser({
-          id: 'admin-1',
-          email: 'admin@annapurnacollege.org',
-          full_name: 'Principal Arnab Senapati',
-          role: 'SUPER_ADMIN',
-          avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-          is_active: true,
-        });
+        setUser(null);
       }
       setLoading(false);
     };
@@ -57,25 +54,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginAsDemo = async (role: ActiveRole) => {
+    setLoading(true);
+    try {
+      let email = 'admin@annapurnacollege.org';
+      let pass = 'Admin@123456';
+
+      if (role === 'TEACHER') {
+        email = 'teacher@annapurnacollege.org';
+        pass = 'Teacher@123456';
+      } else if (role === 'STUDENT') {
+        email = 'student@annapurnacollege.org';
+        pass = 'Student@123456';
+      }
+
+      const res = await api.login(email, pass);
+      setUser(res.user);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = () => {
     api.setToken(null);
     setUser(null);
   };
 
+  // Derive active UI role from user role
+  let activeRole: ActiveRole = 'SUPER_ADMIN';
+  if (user) {
+    if (user.role === 'FACULTY' || user.role === 'TEACHER') {
+      activeRole = 'TEACHER';
+    } else if (user.role === 'STUDENT') {
+      activeRole = 'STUDENT';
+    } else {
+      activeRole = 'SUPER_ADMIN';
+    }
+  }
+
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isAdmin = isSuperAdmin || user?.role === 'ADMIN';
-  const isFaculty = user?.role === 'FACULTY';
+  const isFaculty = user?.role === 'FACULTY' || user?.role === 'TEACHER';
+  const isStudent = user?.role === 'STUDENT';
 
   return (
     <AuthContext.Provider
       value={{
         user,
         loading,
+        activeRole,
         login,
+        loginAsDemo,
         logout,
         isAdmin,
         isSuperAdmin,
         isFaculty,
+        isStudent,
       }}
     >
       {children}

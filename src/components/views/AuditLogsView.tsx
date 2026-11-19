@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { History, Search, Shield, Filter, Clock } from 'lucide-react';
 import { AuditLog } from '../../types';
 import { api } from '../../services/api';
+import { formatIST } from '../../utils/date';
 
 export const AuditLogsView: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -29,63 +30,66 @@ export const AuditLogsView: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div>
-        <h1 className="text-xl font-bold text-white flex items-center gap-2">
-          <History className="w-5 h-5 text-indigo-400" />
-          Institutional Security & Audit Logs
+        <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
+          <History className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          <span>Institutional Security & Audit Trail</span>
         </h1>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Immutable event tracking for governance, credential transitions, and data integrity
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          Immutable event tracking in Indian Standard Time (IST) for governance and data integrity
         </p>
       </div>
 
-      <div className="glass-card p-4 rounded-xl flex items-center justify-between">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div className="relative w-full sm:w-96">
+          <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
           <input
             type="text"
             placeholder="Search action, user email, or entity..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-700/70 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+        </div>
+        <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+          {filtered.length} Events Logged
         </div>
       </div>
 
-      <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+      <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-900/60 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                <th className="py-3 px-4">Timestamp</th>
-                <th className="py-3 px-4">Action</th>
-                <th className="py-3 px-4">User Email & Role</th>
-                <th className="py-3 px-4">Entity Type</th>
-                <th className="py-3 px-4">IP Address</th>
-                <th className="py-3 px-4">Details</th>
+              <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-extrabold">
+                <th className="py-3.5 px-5">Timestamp (IST)</th>
+                <th className="py-3.5 px-5">Action</th>
+                <th className="py-3.5 px-5">User & Role</th>
+                <th className="py-3.5 px-5">Entity Type</th>
+                <th className="py-3.5 px-5">IP Address</th>
+                <th className="py-3.5 px-5">Details</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filtered.map((l) => (
-                <tr key={l.id} className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-3 px-4 text-slate-400 text-[11px] whitespace-nowrap">
-                    {new Date(l.timestamp).toLocaleString()}
+                <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                  <td className="py-3.5 px-5 text-slate-600 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                    {formatIST(l.timestamp)}
                   </td>
-                  <td className="py-3 px-4">
-                    <span className="font-bold text-indigo-400">{l.action}</span>
+                  <td className="py-3.5 px-5">
+                    <span className="font-extrabold text-blue-600 dark:text-blue-400">{l.action}</span>
                   </td>
-                  <td className="py-3 px-4 text-slate-200">
-                    <div>{l.user_email || 'System'}</div>
-                    <div className="text-[10px] text-slate-500">{l.user_role || 'AUTOMATED'}</div>
+                  <td className="py-3.5 px-5">
+                    <div className="font-bold text-slate-800 dark:text-slate-200">{l.user_email || 'System'}</div>
+                    <div className="text-[10px] text-slate-400 font-medium">{l.user_role || 'AUTOMATED'}</div>
                   </td>
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">
+                  <td className="py-3.5 px-5">
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                       {l.entity_type}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-slate-400 text-[11px]">
+                  <td className="py-3.5 px-5 text-slate-500 dark:text-slate-400 text-[11px] font-mono">
                     {l.ip_address || '127.0.0.1'}
                   </td>
-                  <td className="py-3 px-4 text-slate-300 font-sans text-xs truncate max-w-xs">
+                  <td className="py-3.5 px-5 text-slate-600 dark:text-slate-400 text-xs truncate max-w-xs">
                     {JSON.stringify(l.details)}
                   </td>
                 </tr>

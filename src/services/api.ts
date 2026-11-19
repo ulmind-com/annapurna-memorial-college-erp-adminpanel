@@ -1,5 +1,6 @@
 import {
   User,
+  UserRole,
   Student,
   Faculty,
   Course,
@@ -100,13 +101,28 @@ class ApiClient {
       this.setToken(res.access_token);
       return res;
     } catch {
-      // Fallback mock login
+      // Fallback role-aware mock login for offline / pending credentials mode
+      let mockRole: UserRole = 'SUPER_ADMIN';
+      let mockName = 'Principal Arnab Senapati';
+      let mockAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150';
+
+      const lowerEmail = email.toLowerCase();
+      if (lowerEmail.includes('faculty') || lowerEmail.includes('teacher') || lowerEmail.includes('ria') || lowerEmail.includes('debabrata')) {
+        mockRole = 'FACULTY';
+        mockName = 'Ms. Ria Sharma (B.Ed. Faculty)';
+        mockAvatar = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150';
+      } else if (lowerEmail.includes('student') || lowerEmail.includes('trainee') || lowerEmail.includes('ananya')) {
+        mockRole = 'STUDENT';
+        mockName = 'Ananya Das (B.Ed. Trainee)';
+        mockAvatar = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150';
+      }
+
       const mockUser: User = {
-        id: 'admin-1',
+        id: `user-${Date.now()}`,
         email: email || 'admin@annapurnacollege.org',
-        full_name: 'Principal Arnab Senapati',
-        role: 'SUPER_ADMIN',
-        avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+        full_name: mockName,
+        role: mockRole,
+        avatar_url: mockAvatar,
         is_active: true,
       };
       this.setToken('mock_jwt_token_annapurna');

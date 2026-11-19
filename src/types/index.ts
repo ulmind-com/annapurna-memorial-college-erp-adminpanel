@@ -1,4 +1,8 @@
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'FACULTY' | 'STUDENT' | 'STAFF';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'FACULTY' | 'TEACHER' | 'STUDENT' | 'STAFF';
+
+export type NoticeCategory = 'ACADEMIC' | 'EXAMINATION' | 'ADMISSION' | 'EVENT' | 'ADMINISTRATIVE' | 'EMERGENCY';
+export type NoticePriority = 'NORMAL' | 'HIGH' | 'URGENT';
+export type TargetAudience = 'ALL' | 'STUDENTS' | 'FACULTY' | 'STAFF';
 
 export interface User {
   id: string;

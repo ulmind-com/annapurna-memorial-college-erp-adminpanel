@@ -60,7 +60,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
   };
 
   return (
-    <div className="space-y-6 text-slate-800">
+    <div className="space-y-6 text-slate-800 dark:text-slate-100">
       {/* Student Welcome Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white p-6 md:p-8 shadow-lg">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -102,67 +102,67 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
       {/* Trainee KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Attendance Compliance Meter */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Physical Attendance
             </span>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
               <CheckCircle className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2">88.3%</div>
-          <div className="text-[11px] text-emerald-600 font-semibold mt-1">
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">88.3%</div>
+          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
             Compliant (NCTE ≥ 75% required)
           </div>
         </div>
 
         {/* Semester SGPA */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Semester SGPA
             </span>
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
               <Award className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-blue-600 mt-2">
+          <div className="text-2xl font-extrabold text-blue-600 dark:text-blue-400 mt-2">
             {marksheet ? marksheet.sgpa : '9.29'}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            Grade: <b>O (Outstanding)</b>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+            Grade: <b className="text-slate-800 dark:text-slate-200">O (Outstanding)</b>
           </div>
         </div>
 
         {/* Fee Settlement Status */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Fee Ledger Status
             </span>
-            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+            <div className="p-2 rounded-xl bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
               <CreditCard className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2">₹0 Due</div>
-          <div className="text-[11px] text-emerald-600 font-semibold mt-1">
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">₹0 Due</div>
+          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
             ₹35,000 Settled (Receipt Verified)
           </div>
         </div>
 
         {/* Practicum Portfolios */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Micro-Teaching
             </span>
-            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+            <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400">
               <BookOpen className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2">5 of 5</div>
-          <div className="text-[11px] text-slate-500 mt-1">Lesson Plans Approved</div>
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">5 of 5</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Lesson Plans Approved</div>
         </div>
       </div>
 
