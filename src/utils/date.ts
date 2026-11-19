@@ -1,6 +1,6 @@
 /**
  * Indian Standard Time (IST, UTC+05:30) Date & Time Utilities
- * Annapurna Memorial College ERP & Sundarban Ashutosh B.Ed. College
+ * Annapurna Memorial College of Education (Kashinagar, South 24 Parganas)
  */
 
 export const IST_TIMEZONE = 'Asia/Kolkata';

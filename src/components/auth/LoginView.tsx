@@ -124,16 +124,18 @@ export const LoginView: React.FC = () => {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col justify-between font-sans transition-colors duration-200">
       {/* Top Floating Utility Header */}
       <header className="w-full max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black shadow-lg shadow-blue-600/30">
-            <Sparkles className="w-5 h-5" />
-          </div>
+        <div className="flex items-center gap-3.5">
+          <img
+            src="/logo.png"
+            alt="Annapurna Memorial College of Education Crest"
+            className="w-12 h-12 rounded-full border-2 border-blue-600/30 shadow-md object-contain bg-white p-0.5"
+          />
           <div>
-            <div className="text-sm font-black tracking-tight text-slate-900 dark:text-white leading-tight">
-              Annapurna Memorial College ERP
+            <div className="text-base font-black tracking-tight text-slate-900 dark:text-white leading-tight">
+              Annapurna Memorial College of Education
             </div>
             <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-              Sundarban Ashutosh B.Ed. College • Affiliated to BSAEU & Recognized by NCTE
+              Kashinagar, South 24 Parganas • Affiliated to BSAEU (WBUTTEPA) & Recognized by NCTE
             </div>
           </div>
         </div>
@@ -201,9 +203,17 @@ export const LoginView: React.FC = () => {
           {/* Left Hero Sidebar: Features & Role Badge */}
           <div className="lg:col-span-5 p-8 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white flex flex-col justify-between relative overflow-hidden">
             <div className="relative z-10 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider">
-                <ActiveIcon className="w-3.5 h-3.5" />
-                <span>{activeConfig.badge}</span>
+              <div className="flex items-center justify-between">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider">
+                  <ActiveIcon className="w-3.5 h-3.5" />
+                  <span>{activeConfig.badge}</span>
+                </div>
+
+                <img
+                  src="/logo.png"
+                  alt="AMCE Logo"
+                  className="w-12 h-12 rounded-full border-2 border-white/30 shadow-md object-contain bg-white p-0.5"
+                />
               </div>
 
               <div>
@@ -327,7 +337,7 @@ export const LoginView: React.FC = () => {
       {/* Footer */}
       <footer className="w-full max-w-7xl mx-auto px-6 py-4 text-center text-xs text-slate-400 dark:text-slate-500">
         <div>
-          Annapurna Memorial College & Sundarban Ashutosh B.Ed. College ERP • Designed for NCTE & BSAEU Teacher Education
+          Annapurna Memorial College of Education • Kashinagar, South 24 Parganas, West Bengal 743349 • Affiliated to BSAEU (WBUTTEPA) & Recognized by NCTE
         </div>
       </footer>
     </div>

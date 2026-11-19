@@ -55,6 +55,7 @@ export interface Faculty {
   joining_date?: string;
   assigned_subjects: string[];
   status: 'ACTIVE' | 'ON_LEAVE' | 'RESIGNED';
+  is_active?: boolean;
   avatar_url?: string;
   created_at?: string;
 }
@@ -108,13 +109,16 @@ export interface SubjectScore {
   subject_code: string;
   subject_title: string;
   credits: number;
-  theory_obtained: number;
-  practical_obtained: number;
-  max_theory: number;
-  max_practical: number;
+  theory_obtained?: number;
+  practical_obtained?: number;
+  max_theory?: number;
+  max_practical?: number;
   total_obtained: number;
-  max_marks: number;
-  percentage: number;
+  max_marks?: number;
+  internal_marks?: number;
+  external_marks?: number;
+  total_maximum?: number;
+  percentage?: number;
   grade_point: number;
   letter_grade: string;
   remarks?: string;
@@ -144,14 +148,17 @@ export interface Marksheet {
   academic_session: string;
   subject_scores: SubjectScore[];
   total_marks_obtained: number;
-  grand_max_marks: number;
-  overall_percentage: number;
+  grand_max_marks?: number;
+  total_marks_maximum?: number;
+  overall_percentage?: number;
+  percentage?: number;
   sgpa: number;
   cgpa: number;
   letter_grade: string;
   result_status: string;
   status: MarksheetStatus;
   qr_code_hash: string;
+  remarks?: string;
   faculty_submitted_by?: string;
   faculty_submitted_at?: string;
   department_verified_by?: string;
@@ -228,14 +235,15 @@ export interface Invoice {
   roll_number: string;
   student_name: string;
   course_code: string;
-  academic_session: string;
+  academic_session?: string;
   semester: number;
+  title?: string;
   amount_due: number;
   amount_paid: number;
   balance: number;
-  status: 'UNPAID' | 'PARTIAL' | 'PAID' | 'OVERDUE';
+  status: 'UNPAID' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'PENDING';
   due_date: string;
-  components: { name: string; amount: number }[];
+  components?: { name: string; amount: number }[];
   created_at?: string;
 }
 

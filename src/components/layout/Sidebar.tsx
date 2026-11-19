@@ -87,28 +87,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView }) =
   return (
     <aside className="w-64 h-screen flex-shrink-0 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-colors duration-200 z-20">
       {/* College Identity & Logo */}
-      <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-md shadow-blue-600/30 text-white font-black text-sm">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
-              EduNova AI <span className="text-[10px] bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-bold uppercase">ERP</span>
+          <img
+            src="/logo.png"
+            alt="Annapurna Memorial College of Education Crest"
+            className="w-10 h-10 rounded-full border border-blue-600/30 object-contain bg-white p-0.5 shadow-md flex-shrink-0"
+          />
+          <div className="min-w-0">
+            <div className="text-xs font-black text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+              Annapurna Memorial
             </div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[150px]">
-              Annapurna & SABED College
+            <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 leading-tight truncate">
+              College of Education
+            </div>
+            <div className="text-[9px] text-slate-400 font-medium truncate">
+              Kashinagar, South 24 Pgs
             </div>
           </div>
         </div>
 
         {/* Active Badge */}
-        <div className="mt-4 px-3 py-2 rounded-xl bg-blue-600 text-white flex items-center justify-between text-xs font-bold shadow-xs">
+        <div className="mt-3 px-3 py-1.5 rounded-xl bg-blue-600 text-white flex items-center justify-between text-xs font-bold shadow-xs">
           <div className="flex items-center gap-2">
-            <GraduationCap className="w-4 h-4" />
-            <span>EduNova AI ERP 2026</span>
+            <GraduationCap className="w-3.5 h-3.5" />
+            <span className="text-[11px]">ERP Portal 2026</span>
           </div>
-          <span className="text-[10px] bg-blue-700/60 px-1.5 py-0.5 rounded uppercase">
+          <span className="text-[9px] bg-blue-700/60 px-1.5 py-0.5 rounded uppercase font-mono">
             {activeRole === 'SUPER_ADMIN' ? 'Admin' : activeRole === 'TEACHER' ? 'Faculty' : 'Student'}
           </span>
         </div>

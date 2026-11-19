@@ -149,9 +149,18 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
     <div className="space-y-6 text-slate-800">
       {/* Top Breadcrumb Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Teacher Dashboard</h2>
-        <div className="text-xs text-slate-500 font-medium">
-          Annapurna Memorial College & Sundarban Ashutosh B.Ed. College
+        <div className="flex items-center gap-3">
+          <img
+            src="/logo.png"
+            alt="Annapurna Memorial College of Education Crest"
+            className="w-10 h-10 rounded-full object-contain border border-blue-600/30 p-0.5 bg-white shadow-xs flex-shrink-0"
+          />
+          <div>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Teacher Dashboard</h2>
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              Annapurna Memorial College of Education • Kashinagar, South 24 Parganas
+            </div>
+          </div>
         </div>
       </div>
 

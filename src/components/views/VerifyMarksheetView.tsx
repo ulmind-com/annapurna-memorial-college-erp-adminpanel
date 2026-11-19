@@ -46,7 +46,7 @@ export const VerifyMarksheetView: React.FC = () => {
           Public Marksheet & Credential Verification Portal
         </h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 max-w-lg mx-auto leading-relaxed">
-          Sundarban Ashutosh B.Ed. College & Annapurna Memorial College. Enter the 16-character
+          Annapurna Memorial College of Education (Kashinagar, South 24 Parganas). Enter the 16-character
           tamper-evident cryptographic verification code printed on the official statement of marks.
         </p>
       </div>

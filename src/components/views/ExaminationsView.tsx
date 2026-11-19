@@ -14,6 +14,9 @@ import {
   Sparkles,
   QrCode,
   Building,
+  Edit3,
+  Award,
+  CheckCircle2,
 } from 'lucide-react';
 import { Marksheet, MarksheetStatus, Examination } from '../../types';
 import { api } from '../../services/api';
@@ -21,14 +24,24 @@ import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
 import { useSound } from '../../context/SoundContext';
+import { useAuth } from '../../context/AuthContext';
 
 export const ExaminationsView: React.FC = () => {
+  const { activeRole } = useAuth();
+  const isStudent = activeRole === 'STUDENT';
+  const isSuperAdmin = activeRole === 'SUPER_ADMIN';
+
   const [examinations, setExaminations] = useState<Examination[]>([]);
   const [selectedExamId, setSelectedExamId] = useState<string>('exam-1');
   const [marksheets, setMarksheets] = useState<Marksheet[]>([]);
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [search, setSearch] = useState<string>('');
   const [selectedMarksheet, setSelectedMarksheet] = useState<Marksheet | null>(null);
+
+  // Edit Marksheet Modal
+  const [editingMarksheet, setEditingMarksheet] = useState<Marksheet | null>(null);
+  const [editScores, setEditScores] = useState<any[]>([]);
+  const [editRemarks, setEditRemarks] = useState<string>('');
 
   // Workflow Action Modal
   const [actionModal, setActionModal] = useState<{
@@ -43,7 +56,7 @@ export const ExaminationsView: React.FC = () => {
     remarks: '',
   });
 
-  const { playClick, playSuccess, playApprove, playAlert } = useSound();
+  const { playClick, playSuccess, playApprove, playAlert, playPop } = useSound();
 
   const loadData = async () => {
     try {
@@ -104,7 +117,6 @@ export const ExaminationsView: React.FC = () => {
       }
 
       setActionModal({ isOpen: false, marksheet: null, action: 'APPROVE', remarks: '' });
-      // Reload marksheets
       const updated = await api.getExamMarksheets(selectedExamId || 'exam-1');
       setMarksheets(updated);
       if (selectedMarksheet) {
@@ -123,7 +135,7 @@ export const ExaminationsView: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Marksheet_${ms.roll_number}_Sem${ms.semester}.pdf`;
+      a.download = `AMCE_Marksheet_${ms.roll_number}_Sem${ms.semester}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -133,7 +145,245 @@ export const ExaminationsView: React.FC = () => {
     }
   };
 
-  // Filter marksheets
+  // Open Edit Scores Modal
+  const handleOpenEditScores = (ms: Marksheet) => {
+    playPop();
+    setEditingMarksheet(ms);
+    setEditScores(JSON.parse(JSON.stringify(ms.subject_scores)));
+    setEditRemarks(ms.remarks || '');
+  };
+
+  const handleScoreChange = (idx: number, field: 'internal_marks' | 'external_marks', val: number) => {
+    const updated = [...editScores];
+    updated[idx][field] = val;
+    const internal = Number(updated[idx].internal_marks) || 0;
+    const external = Number(updated[idx].external_marks) || 0;
+    const total = internal + external;
+    updated[idx].total_obtained = total;
+
+    const max = Number(updated[idx].total_maximum) || 100;
+    const pct = (total / max) * 100;
+    let grade = 'F';
+    let gp = 0;
+    if (pct >= 90) { grade = 'O'; gp = 10; }
+    else if (pct >= 80) { grade = 'A+'; gp = 9; }
+    else if (pct >= 70) { grade = 'A'; gp = 8; }
+    else if (pct >= 60) { grade = 'B+'; gp = 7; }
+    else if (pct >= 50) { grade = 'B'; gp = 6; }
+    else if (pct >= 40) { grade = 'C'; gp = 5; }
+
+    updated[idx].letter_grade = grade;
+    updated[idx].grade_point = gp;
+    setEditScores(updated);
+  };
+
+  const handleSaveEditScores = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMarksheet) return;
+
+    try {
+      await api.updateMarksheetScores(editingMarksheet.id, {
+        scores: editScores,
+        remarks: editRemarks,
+      });
+      playSuccess();
+      setEditingMarksheet(null);
+      const updated = await api.getExamMarksheets(selectedExamId || 'exam-1');
+      setMarksheets(updated);
+      if (selectedMarksheet && selectedMarksheet.id === editingMarksheet.id) {
+        setSelectedMarksheet(updated.find((m) => m.id === editingMarksheet.id) || null);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to update scores');
+    }
+  };
+
+  // Student-specific Certified Marksheet view
+  if (isStudent) {
+    const studentMarksheet = marksheets.find((m) => m.roll_number === 'AMC-BED-2024-001') || marksheets[0];
+
+    return (
+      <div className="space-y-6 text-slate-900 dark:text-slate-100 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
+                Official Statement of Marks
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">BSAEU University Certified</span>
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-1">
+              Semester Academic Marksheet
+            </h1>
+          </div>
+
+          {studentMarksheet && (
+            <SoundButton
+              onClick={() => handleDownloadPdf(studentMarksheet)}
+              variant="primary"
+              size="md"
+              soundType="pop"
+              icon={<Download className="w-4 h-4" />}
+            >
+              Download Certified PDF
+            </SoundButton>
+          )}
+        </div>
+
+        {studentMarksheet ? (
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 shadow-xl space-y-6 relative overflow-hidden">
+            {/* Watermark Crest */}
+            <div className="absolute right-4 bottom-4 opacity-5 pointer-events-none">
+              <img src="/logo.png" alt="Watermark Crest" className="w-96 h-96 object-contain" />
+            </div>
+
+            {/* Institutional Seal & Header */}
+            <div className="text-center border-b border-slate-200 dark:border-slate-800 pb-6 space-y-2">
+              <div className="flex items-center justify-center gap-3">
+                <img
+                  src="/logo.png"
+                  alt="Annapurna Memorial College of Education Crest"
+                  className="w-16 h-16 rounded-full border border-blue-600/40 object-contain shadow-md bg-white p-0.5"
+                />
+              </div>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                Annapurna Memorial College of Education
+              </h2>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Kashinagar, South 24 Parganas, West Bengal 743349
+              </p>
+              <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                Affiliated to Baba Saheb Ambedkar Education University (BSAEU) • Approved by NCTE
+              </div>
+              <div className="inline-block mt-2 px-4 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                STATEMENT OF MARKS FOR {studentMarksheet.exam_title.toUpperCase()}
+              </div>
+            </div>
+
+            {/* Trainee Particulars */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-xs">
+              <div>
+                <span className="text-slate-400 font-medium block">Trainee Name:</span>
+                <span className="font-extrabold text-slate-900 dark:text-white text-sm">{studentMarksheet.student_name}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium block">Roll Number:</span>
+                <span className="font-mono font-bold text-blue-600 dark:text-blue-400 text-sm">{studentMarksheet.roll_number}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium block">Program & Semester:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{studentMarksheet.course_name} - Sem {studentMarksheet.semester}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium block">Session & Status:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">{studentMarksheet.academic_session} • {studentMarksheet.result_status}</span>
+              </div>
+            </div>
+
+            {/* Subject Marks Table */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-extrabold uppercase">
+                    <th className="py-3 px-4">Subject Code & Title</th>
+                    <th className="py-3 px-4 text-center">Credits</th>
+                    <th className="py-3 px-4 text-center">Internal / Theory</th>
+                    <th className="py-3 px-4 text-center">Practicum</th>
+                    <th className="py-3 px-4 text-center">Marks Obtained</th>
+                    <th className="py-3 px-4 text-center">Max Marks</th>
+                    <th className="py-3 px-4 text-center">Letter Grade</th>
+                    <th className="py-3 px-4 text-center">Grade Point</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {studentMarksheet.subject_scores.map((sc) => (
+                    <tr key={sc.subject_code} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <td className="py-3.5 px-4">
+                        <span className="font-mono font-bold text-blue-600 dark:text-blue-400 mr-2">{sc.subject_code}</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{sc.subject_title}</span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-bold">{sc.credits}</td>
+                      <td className="py-3.5 px-4 text-center">{sc.internal_marks}</td>
+                      <td className="py-3.5 px-4 text-center">{sc.external_marks}</td>
+                      <td className="py-3.5 px-4 text-center font-extrabold text-blue-600 dark:text-blue-400">
+                        {sc.total_obtained}
+                      </td>
+                      <td className="py-3.5 px-4 text-center text-slate-500">{sc.total_maximum}</td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="px-2 py-0.5 rounded-md font-bold text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                          {sc.letter_grade}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-bold">{sc.grade_point}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Performance Summary Footnotes */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 p-5 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs">
+              <div>
+                <span className="text-slate-500 dark:text-slate-400">Total Marks Obtained:</span>
+                <div className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
+                  {studentMarksheet.total_marks_obtained} / {studentMarksheet.total_marks_maximum}
+                </div>
+              </div>
+              <div>
+                <span className="text-slate-500 dark:text-slate-400">Percentage:</span>
+                <div className="text-xl font-black text-blue-600 dark:text-blue-400 mt-0.5">
+                  {studentMarksheet.percentage}%
+                </div>
+              </div>
+              <div>
+                <span className="text-slate-500 dark:text-slate-400">Semester SGPA:</span>
+                <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {studentMarksheet.sgpa}
+                </div>
+              </div>
+              <div>
+                <span className="text-slate-500 dark:text-slate-400">Final Outcome:</span>
+                <div className="text-base font-black text-emerald-700 dark:text-emerald-300 mt-0.5">
+                  PASSED (DISTINCTION)
+                </div>
+              </div>
+            </div>
+
+            {/* Security Verification & Signatures */}
+            <div className="flex flex-col sm:flex-row items-center justify-between pt-6 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <QrCode className="w-10 h-10 text-slate-700 dark:text-slate-300" />
+                </div>
+                <div>
+                  <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                    HASH: {studentMarksheet.qr_code_hash}
+                  </div>
+                  <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Digitally Verified by Examination Controller
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <div className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
+                  Dr. Arnab Senapati, M.Ed., Ph.D.
+                </div>
+                <div className="text-[11px] text-slate-400">Principal & Chief Controller of Examinations</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-12 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
+            No published marksheets available yet.
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Super Admin & Faculty Administrative View
   const filteredMarksheets = marksheets.filter((m) => {
     const matchesSearch =
       m.student_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -145,16 +395,22 @@ export const ExaminationsView: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Page Title & Status Flow Bar */}
+    <div className="space-y-6 text-slate-900 dark:text-slate-100 animate-in fade-in duration-300">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <FileCheck2 className="w-5 h-5 text-indigo-400" />
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+              Examination Pipeline
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">BSAEU 4-Tier Verification Desk</span>
+          </div>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-1 flex items-center gap-2">
+            <FileCheck2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             Examinations & Marksheet Approval Pipeline
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            BSAEU & NCTE multi-tiered marks verification, SGPA/CGPA evaluation, and digital publication
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Multi-stage marks verification, SGPA evaluation, score edits, and digital certificate publication
           </p>
         </div>
 
@@ -163,7 +419,7 @@ export const ExaminationsView: React.FC = () => {
           <select
             value={selectedExamId}
             onChange={(e) => setSelectedExamId(e.target.value)}
-            className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-semibold"
+            className="px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-bold shadow-xs focus:ring-2 focus:ring-blue-500"
           >
             {examinations.map((ex) => (
               <option key={ex.id} value={ex.id}>
@@ -175,9 +431,9 @@ export const ExaminationsView: React.FC = () => {
       </div>
 
       {/* Visual Workflow Stage Progression Bar */}
-      <div className="glass-panel p-5 rounded-2xl border border-indigo-500/20 shadow-xl relative overflow-hidden">
-        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+      <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+        <div className="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           Marksheet Lifecycle State Machine
         </div>
 
@@ -193,8 +449,8 @@ export const ExaminationsView: React.FC = () => {
             {
               id: 'SUBMITTED_BY_FACULTY',
               num: '2',
-              title: 'Faculty Submitted',
-              desc: 'Awaiting dept. check',
+              title: 'Submitted',
+              desc: 'Dept. review pending',
               count: marksheets.filter((m) => m.status === 'SUBMITTED_BY_FACULTY').length,
             },
             {
@@ -218,32 +474,35 @@ export const ExaminationsView: React.FC = () => {
               desc: 'Live on student portal',
               count: marksheets.filter((m) => m.status === 'PUBLISHED').length,
             },
-          ].map((stage, idx) => (
+          ].map((stage) => (
             <div
               key={stage.id}
-              onClick={() => setActiveTab(stage.id)}
-              className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+              onClick={() => {
+                playClick();
+                setActiveTab(stage.id);
+              }}
+              className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
                 activeTab === stage.id
-                  ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg'
-                  : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                  ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-600 text-slate-900 dark:text-white shadow-sm ring-1 ring-blue-600/30'
+                  : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300'
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="w-5 h-5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] font-bold text-indigo-400">
+                <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">
                   {stage.num}
                 </span>
-                <span className="text-base font-extrabold text-white">{stage.count}</span>
+                <span className="text-base font-black text-slate-900 dark:text-white">{stage.count}</span>
               </div>
-              <div className="text-xs font-bold mt-2 text-white">{stage.title}</div>
+              <div className="text-xs font-extrabold mt-2 text-slate-900 dark:text-white">{stage.title}</div>
               <div className="text-[10px] text-slate-400 truncate">{stage.desc}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Tabs and Search Controls */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+      {/* Filter and Search Bar */}
+      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
           {[
             { id: 'ALL', label: `All (${marksheets.length})` },
             { id: 'DRAFT', label: 'Drafts' },
@@ -259,10 +518,10 @@ export const ExaminationsView: React.FC = () => {
                 playClick();
                 setActiveTab(t.id);
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 activeTab === t.id
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
               {t.label}
@@ -270,80 +529,84 @@ export const ExaminationsView: React.FC = () => {
           ))}
         </div>
 
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3.5 top-2.5 w-3.5 h-3.5 text-slate-400" />
           <input
             type="text"
             placeholder="Search student or roll..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-700/70 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+            className="w-full pl-9 pr-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
           />
         </div>
       </div>
 
-      {/* Marksheets Table */}
-      <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
+      {/* Marksheet Pipeline Table */}
+      <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-900/70 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                <th className="py-3 px-4">Trainee</th>
-                <th className="py-3 px-4">Roll Number</th>
-                <th className="py-3 px-4">Marks (Obt / Max)</th>
-                <th className="py-3 px-4">SGPA</th>
-                <th className="py-3 px-4">Classification</th>
-                <th className="py-3 px-4">Current Pipeline Stage</th>
-                <th className="py-3 px-4 text-right">Workflow Transition</th>
+              <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-extrabold">
+                <th className="py-3.5 px-4">Trainee</th>
+                <th className="py-3.5 px-4">Roll Number</th>
+                <th className="py-3.5 px-4 text-center">Semester</th>
+                <th className="py-3.5 px-4 text-center">Marks</th>
+                <th className="py-3.5 px-4 text-center">Percentage</th>
+                <th className="py-3.5 px-4 text-center">SGPA</th>
+                <th className="py-3.5 px-4 text-center">Status</th>
+                <th className="py-3.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredMarksheets.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500">
-                    No marksheets matching criteria.
+                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                    No marksheets match current filter.
                   </td>
                 </tr>
               ) : (
                 filteredMarksheets.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-white">{m.student_name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        {m.course_code} - Sem {m.semester}
-                      </div>
+                  <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <div className="font-extrabold text-slate-900 dark:text-white">{m.student_name}</div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">{m.course_name}</div>
                     </td>
-                    <td className="py-3 px-4 font-mono font-medium text-indigo-400">{m.roll_number}</td>
-                    <td className="py-3 px-4 font-medium text-slate-200">
-                      {m.total_marks_obtained} / {m.grand_max_marks} ({m.overall_percentage}%)
+                    <td className="py-3.5 px-4 font-mono font-bold text-blue-600 dark:text-blue-400">{m.roll_number}</td>
+                    <td className="py-3.5 px-4 text-center font-bold text-slate-700 dark:text-slate-300">Sem {m.semester}</td>
+                    <td className="py-3.5 px-4 text-center font-bold text-slate-900 dark:text-white">
+                      {m.total_marks_obtained} / {m.total_marks_maximum}
                     </td>
-                    <td className="py-3 px-4">
-                      <span className="font-extrabold text-sm text-indigo-400">{m.sgpa}</span>
-                      <span className="ml-1 text-[11px] text-slate-400">({m.letter_grade})</span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-[10px] font-semibold text-slate-300">{m.result_status}</span>
-                    </td>
-                    <td className="py-3 px-4">
+                    <td className="py-3.5 px-4 text-center font-bold text-blue-600 dark:text-blue-400">{m.percentage}%</td>
+                    <td className="py-3.5 px-4 text-center font-black text-emerald-600 dark:text-emerald-400">{m.sgpa}</td>
+                    <td className="py-3.5 px-4 text-center">
                       <Badge status={m.status} size="sm" />
-                      {m.status === 'REJECTED' && m.rejection_reason && (
-                        <div className="text-[10px] text-rose-400 mt-1 line-clamp-1 italic">
-                          "{m.rejection_reason}"
-                        </div>
-                      )}
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <SoundButton
-                          onClick={() => setSelectedMarksheet(m)}
-                          size="sm"
-                          variant="ghost"
-                          className="text-xs text-slate-300 hover:text-white"
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playPop();
+                            setSelectedMarksheet(m);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors"
                         >
-                          Breakdown
-                        </SoundButton>
+                          Details
+                        </button>
 
-                        {/* Workflow Action Triggers based on stage */}
+                        {/* Edit Scores Button for Super Admin */}
+                        {isSuperAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditScores(m)}
+                            title="Edit Subject Marks & SGPA"
+                            className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        {/* Pipeline Stage Transitions */}
                         {m.status === 'DRAFT' && (
                           <SoundButton
                             onClick={() => handleActionClick(m, 'SUBMIT')}
@@ -363,7 +626,7 @@ export const ExaminationsView: React.FC = () => {
                               size="sm"
                               variant="secondary"
                               soundType="click"
-                              icon={<CheckCircle className="w-3 h-3 text-purple-400" />}
+                              icon={<CheckCircle className="w-3 h-3 text-purple-600 dark:text-purple-400" />}
                             >
                               Verify
                             </SoundButton>
@@ -423,17 +686,6 @@ export const ExaminationsView: React.FC = () => {
                             PDF
                           </SoundButton>
                         )}
-
-                        {m.status === 'REJECTED' && (
-                          <SoundButton
-                            onClick={() => handleActionClick(m, 'SUBMIT')}
-                            size="sm"
-                            variant="secondary"
-                            soundType="click"
-                          >
-                            Re-submit
-                          </SoundButton>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -444,219 +696,195 @@ export const ExaminationsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal: Marksheet Subject Breakdown & Audit Trail */}
-      {selectedMarksheet && (
+      {/* Modal: Edit Marksheet Scores (Super Admin) */}
+      {editingMarksheet && (
         <Modal
-          isOpen={!!selectedMarksheet}
-          onClose={() => setSelectedMarksheet(null)}
-          title="Official Statement of Marks & Evaluation"
-          subtitle={`${selectedMarksheet.student_name} (${selectedMarksheet.roll_number})`}
+          isOpen={!!editingMarksheet}
+          onClose={() => setEditingMarksheet(null)}
+          title="Edit Marksheet Scores & Evaluation"
+          subtitle={`Adjust raw marks for ${editingMarksheet.student_name} (${editingMarksheet.roll_number})`}
           maxWidth="3xl"
         >
-          <div className="space-y-6">
-            {/* Header info */}
-            <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <div className="text-sm font-bold text-white">{selectedMarksheet.exam_title}</div>
-                <div className="text-xs text-indigo-400 font-medium">
-                  {selectedMarksheet.course_name} • Semester {selectedMarksheet.semester} • Session {selectedMarksheet.academic_session}
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5 font-mono">
-                  <QrCode className="w-3 h-3 text-emerald-400" />
-                  Hash: {selectedMarksheet.qr_code_hash}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Badge status={selectedMarksheet.status} />
-                <SoundButton
-                  onClick={() => handleDownloadPdf(selectedMarksheet)}
-                  size="sm"
-                  variant="primary"
-                  soundType="pop"
-                  icon={<Download className="w-3.5 h-3.5" />}
-                >
-                  Download PDF
-                </SoundButton>
-              </div>
-            </div>
-
-            {/* Subject score table */}
-            <div className="border border-slate-800 rounded-xl overflow-hidden">
+          <form onSubmit={handleSaveEditScores} className="space-y-5">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-800/70 text-slate-300 font-semibold border-b border-slate-800 text-[11px]">
-                    <th className="py-2.5 px-3">Subject Code & Title</th>
-                    <th className="py-2.5 px-3 text-center">Credits</th>
-                    <th className="py-2.5 px-3 text-center">Theory (Max)</th>
-                    <th className="py-2.5 px-3 text-center">Prac (Max)</th>
+                  <tr className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold border-b border-slate-200 dark:border-slate-700">
+                    <th className="py-2.5 px-3">Subject</th>
+                    <th className="py-2.5 px-3 text-center">Theory / Internal</th>
+                    <th className="py-2.5 px-3 text-center">Practicum / External</th>
                     <th className="py-2.5 px-3 text-center">Total</th>
-                    <th className="py-2.5 px-3 text-center">Grade Point</th>
                     <th className="py-2.5 px-3 text-center">Grade</th>
+                    <th className="py-2.5 px-3 text-center">GP</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {selectedMarksheet.subject_scores.map((sc) => (
-                    <tr key={sc.subject_code} className="hover:bg-slate-800/30">
-                      <td className="py-2.5 px-3">
-                        <div className="font-semibold text-white">{sc.subject_title}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{sc.subject_code}</div>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {editScores.map((sc, idx) => (
+                    <tr key={sc.subject_code}>
+                      <td className="py-2 px-3">
+                        <div className="font-mono font-bold text-blue-600 dark:text-blue-400">{sc.subject_code}</div>
+                        <div className="text-[11px] text-slate-500">{sc.subject_title}</div>
                       </td>
-                      <td className="py-2.5 px-3 text-center font-medium">{sc.credits}</td>
-                      <td className="py-2.5 px-3 text-center">
-                        {sc.theory_obtained} <span className="text-slate-500">({sc.max_theory})</span>
+                      <td className="py-2 px-3 text-center">
+                        <input
+                          type="number"
+                          min={0}
+                          max={sc.total_maximum || 100}
+                          value={sc.internal_marks || 0}
+                          onChange={(e) => handleScoreChange(idx, 'internal_marks', Number(e.target.value))}
+                          className="w-20 px-2 py-1 text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold"
+                        />
                       </td>
-                      <td className="py-2.5 px-3 text-center">
-                        {sc.practical_obtained} <span className="text-slate-500">({sc.max_practical})</span>
+                      <td className="py-2 px-3 text-center">
+                        <input
+                          type="number"
+                          min={0}
+                          max={sc.total_maximum || 100}
+                          value={sc.external_marks || 0}
+                          onChange={(e) => handleScoreChange(idx, 'external_marks', Number(e.target.value))}
+                          className="w-20 px-2 py-1 text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold"
+                        />
                       </td>
-                      <td className="py-2.5 px-3 text-center font-bold text-white">
-                        {sc.total_obtained} / {sc.max_marks}
+                      <td className="py-2 px-3 text-center font-black text-blue-600 dark:text-blue-400">
+                        {sc.total_obtained}
                       </td>
-                      <td className="py-2.5 px-3 text-center font-semibold text-indigo-400">
-                        {sc.grade_point}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="px-2 py-0.5 rounded font-bold text-[11px] bg-slate-800 text-slate-200 border border-slate-700">
-                          {sc.letter_grade}
-                        </span>
-                      </td>
+                      <td className="py-2 px-3 text-center font-bold">{sc.letter_grade}</td>
+                      <td className="py-2 px-3 text-center font-bold">{sc.grade_point}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {/* Summary statistics cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800 text-center">
-                <div className="text-[10px] text-slate-400 uppercase">Grand Total</div>
-                <div className="text-base font-bold text-white mt-0.5">
-                  {selectedMarksheet.total_marks_obtained} / {selectedMarksheet.grand_max_marks}
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800 text-center">
-                <div className="text-[10px] text-slate-400 uppercase">Percentage</div>
-                <div className="text-base font-bold text-emerald-400 mt-0.5">
-                  {selectedMarksheet.overall_percentage}%
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800 text-center">
-                <div className="text-[10px] text-slate-400 uppercase">Semester GPA (SGPA)</div>
-                <div className="text-base font-bold text-indigo-400 mt-0.5">
-                  {selectedMarksheet.sgpa}
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-800 text-center">
-                <div className="text-[10px] text-slate-400 uppercase">Classification</div>
-                <div className="text-xs font-bold text-amber-400 mt-1 truncate">
-                  {selectedMarksheet.result_status}
-                </div>
-              </div>
-            </div>
-
-            {/* Audit Trail Timeline */}
             <div>
-              <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                Immutable Audit Trail History
-              </div>
-              <div className="p-3 rounded-xl bg-slate-800/30 border border-slate-800 space-y-2.5">
-                {selectedMarksheet.audit_trail.map((item, idx) => (
-                  <div key={idx} className="flex items-start gap-3 text-xs">
-                    <span className="w-2 h-2 rounded-full bg-indigo-400 mt-1 flex-shrink-0" />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-white">
-                          {item.performed_by_name} ({item.performed_by_role})
-                        </span>
-                        <span className="text-[10px] text-slate-500">
-                          {new Date(item.timestamp).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-indigo-300 font-mono mt-0.5">Action: {item.action}</div>
-                      {item.remarks && (
-                        <div className="text-slate-400 text-[11px] italic mt-0.5">"{item.remarks}"</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* Modal: Workflow Action Confirmation (Approve / Publish / Reject / Verify) */}
-      {actionModal.isOpen && actionModal.marksheet && (
-        <Modal
-          isOpen={actionModal.isOpen}
-          onClose={() => setActionModal({ isOpen: false, marksheet: null, action: 'APPROVE', remarks: '' })}
-          title={`Confirm Workflow Action: ${actionModal.action}`}
-          subtitle={`For student: ${actionModal.marksheet.student_name} (${actionModal.marksheet.roll_number})`}
-          maxWidth="md"
-        >
-          <div className="space-y-4">
-            <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 text-xs text-slate-300 leading-relaxed">
-              {actionModal.action === 'PUBLISH' && (
-                <p>
-                  Publishing will immediately make this official marksheet accessible to the student, enable public QR verification, and dispatch an automated email notification.
-                </p>
-              )}
-              {actionModal.action === 'APPROVE' && (
-                <p>
-                  As Administrator / Principal, confirming will advance this marksheet to <b>ADMIN_APPROVED</b> stage.
-                </p>
-              )}
-              {actionModal.action === 'VERIFY' && (
-                <p>
-                  Confirming indicates that subject internal marks, practicum portfolios, and attendance prerequisites have been checked.
-                </p>
-              )}
-              {actionModal.action === 'REJECT' && (
-                <p className="text-rose-300">
-                  Rejecting will send this marksheet back to the faculty member with your feedback remarks for immediate rectification.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Official Remarks / Audit Notes {actionModal.action === 'REJECT' ? '*' : '(Optional)'}
-              </label>
-              <textarea
-                rows={3}
-                required={actionModal.action === 'REJECT'}
-                value={actionModal.remarks}
-                onChange={(e) => setActionModal({ ...actionModal, remarks: e.target.value })}
-                placeholder={
-                  actionModal.action === 'REJECT'
-                    ? 'Enter specific rejection reasons or score discrepancies...'
-                    : 'Notes regarding verification or approval...'
-                }
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Administrative Remarks</label>
+              <input
+                type="text"
+                value={editRemarks}
+                onChange={(e) => setEditRemarks(e.target.value)}
+                placeholder="e.g. Scrutiny re-evaluation adjustment approved by Principal"
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
               />
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
-              <SoundButton
-                variant="outline"
-                size="sm"
-                onClick={() => setActionModal({ isOpen: false, marksheet: null, action: 'APPROVE', remarks: '' })}
-              >
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <SoundButton type="button" onClick={() => setEditingMarksheet(null)} variant="secondary" size="sm">
                 Cancel
               </SoundButton>
+              <SoundButton type="submit" variant="primary" size="sm" soundType="success">
+                Save & Recalculate SGPA
+              </SoundButton>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal: Details Modal */}
+      {selectedMarksheet && (
+        <Modal
+          isOpen={!!selectedMarksheet}
+          onClose={() => setSelectedMarksheet(null)}
+          title="Statement of Marks & Audit Trail"
+          subtitle={`${selectedMarksheet.student_name} (${selectedMarksheet.roll_number})`}
+          maxWidth="2xl"
+        >
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-extrabold text-slate-900 dark:text-white">{selectedMarksheet.exam_title}</div>
+                <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold mt-0.5">
+                  {selectedMarksheet.course_name} • Sem {selectedMarksheet.semester}
+                </div>
+              </div>
+              <Badge status={selectedMarksheet.status} />
+            </div>
+
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
+                    <th className="py-2 px-3">Subject</th>
+                    <th className="py-2 px-3 text-center">Marks</th>
+                    <th className="py-2 px-3 text-center">Grade</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {selectedMarksheet.subject_scores.map((sc) => (
+                    <tr key={sc.subject_code}>
+                      <td className="py-2 px-3">{sc.subject_title} ({sc.subject_code})</td>
+                      <td className="py-2 px-3 text-center font-bold">{sc.total_obtained} / {sc.total_maximum}</td>
+                      <td className="py-2 px-3 text-center font-bold text-emerald-600">{sc.letter_grade}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <SoundButton type="button" onClick={() => setSelectedMarksheet(null)} variant="secondary" size="sm">
+                Close
+              </SoundButton>
               <SoundButton
-                variant={actionModal.action === 'REJECT' ? 'danger' : 'primary'}
+                type="button"
+                onClick={() => handleDownloadPdf(selectedMarksheet)}
+                variant="primary"
                 size="sm"
-                soundType={actionModal.action === 'PUBLISH' ? 'approve' : 'success'}
-                onClick={handleConfirmAction}
+                icon={<Download className="w-3.5 h-3.5" />}
               >
-                Confirm {actionModal.action}
+                Download PDF
               </SoundButton>
             </div>
           </div>
         </Modal>
       )}
+
+      {/* Modal: Workflow Action Clearance */}
+      <Modal
+        isOpen={actionModal.isOpen}
+        onClose={() => setActionModal({ isOpen: false, marksheet: null, action: 'APPROVE', remarks: '' })}
+        title={`${actionModal.action} Marksheet Clearance`}
+        subtitle="Regulatory compliance transition"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-600 dark:text-slate-300">
+            Confirm transition of marksheet for{' '}
+            <b>{actionModal.marksheet?.student_name}</b> ({actionModal.marksheet?.roll_number}) to state{' '}
+            <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{actionModal.action}</span>.
+          </p>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Remarks {actionModal.action === 'REJECT' && '*'}
+            </label>
+            <textarea
+              rows={3}
+              value={actionModal.remarks}
+              onChange={(e) => setActionModal({ ...actionModal, remarks: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <SoundButton
+              type="button"
+              onClick={() => setActionModal({ isOpen: false, marksheet: null, action: 'APPROVE', remarks: '' })}
+              variant="secondary"
+              size="sm"
+            >
+              Cancel
+            </SoundButton>
+            <SoundButton
+              type="button"
+              onClick={handleConfirmAction}
+              variant={actionModal.action === 'REJECT' ? 'danger' : 'primary'}
+              size="sm"
+            >
+              Confirm {actionModal.action}
+            </SoundButton>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

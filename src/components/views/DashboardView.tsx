@@ -71,7 +71,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
               Annapurna Memorial College ERP
             </h1>
             <p className="text-sm text-slate-300 leading-relaxed">
-              Sundarban Ashutosh B.Ed. College Administrative System. Oversee admissions, curriculum,
+              Annapurna Memorial College of Education, Kashinagar Administrative System. Oversee admissions, curriculum,
               biometric attendance compliance, and multi-stage marksheet approval workflows.
             </p>
           </div>

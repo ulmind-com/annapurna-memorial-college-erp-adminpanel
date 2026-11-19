@@ -65,14 +65,21 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white p-6 md:p-8 shadow-lg">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-5">
-            <img
-              src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200"
-              alt="Ananya Das"
-              className="w-20 h-20 rounded-full border-4 border-white/30 object-cover shadow-md"
-            />
+            <div className="relative">
+              <img
+                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200"
+                alt="Ananya Das"
+                className="w-20 h-20 rounded-full border-4 border-white/30 object-cover shadow-md"
+              />
+              <img
+                src="/logo.png"
+                alt="Annapurna Memorial College of Education Crest"
+                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full border-2 border-white bg-white object-contain p-0.5 shadow-sm"
+              />
+            </div>
             <div className="space-y-1">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white uppercase tracking-wider">
-                Teacher Trainee Portal
+                Annapurna Memorial College of Education • Trainee Portal
               </span>
               <h1 className="text-2xl font-black tracking-tight">Welcome back, Ananya Das!</h1>
               <div className="text-xs text-blue-100 flex flex-wrap items-center gap-2">

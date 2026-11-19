@@ -39,10 +39,29 @@ class ApiClient {
   // Local reactive cache for mock fallback mode
   private students = [...mockStudents];
   private faculty = [...mockFaculty];
+  private courses = [...mockCourses];
+  private subjects = [...mockSubjects];
   private marksheets = [...mockMarksheets];
   private notices = [...mockNotices];
   private invoices = [...mockInvoices];
   private auditLogs = [...mockAuditLogs];
+  private collegeProfile = {
+    name: 'Annapurna Memorial College of Education',
+    tagline: 'Premier Teacher Training & Pedagogy Institution',
+    affiliation: 'Baba Saheb Ambedkar Education University (BSAEU) & WBBPE',
+    recognition: 'Recognized by NCTE (National Council for Teacher Education)',
+    college_code: 'AMCE-743349',
+    aishe_code: 'C-58921',
+    address: 'Kashinagar, South 24 Parganas, West Bengal 743349',
+    district: 'South 24 Parganas',
+    state: 'West Bengal',
+    pincode: '743349',
+    principal_name: 'Dr. Arnab Senapati, M.Ed., Ph.D.',
+    email: 'office@annapurnacollege.edu.in',
+    phone: '+91 98765 43210',
+    academic_year: '2024-2026',
+    established: 2012,
+  };
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -213,7 +232,57 @@ class ApiClient {
     try {
       return await this.request<Course[]>('/academics/courses');
     } catch {
-      return mockCourses;
+      return this.courses;
+    }
+  }
+
+  async createCourse(data: Partial<Course>): Promise<Course> {
+    try {
+      return await this.request<Course>('/academics/courses', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const newCourse: Course = {
+        id: `course-${Date.now()}`,
+        code: data.code || `NEW_${Date.now()}`,
+        name: data.name || 'New Degree Course',
+        department: data.department || 'Department of Teacher Education',
+        duration_years: Number(data.duration_years) || 2,
+        total_semesters: Number(data.total_semesters) || 4,
+        affiliation: data.affiliation || 'BSAEU & NCTE Approved',
+        max_intake: Number(data.max_intake) || 100,
+        description: data.description || 'Professional educator training program.',
+        is_active: true,
+      };
+      this.courses.push(newCourse);
+      return newCourse;
+    }
+  }
+
+  async updateCourse(id: string, data: Partial<Course>): Promise<Course> {
+    try {
+      return await this.request<Course>(`/academics/courses/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const idx = this.courses.findIndex((c) => c.id === id || c.code === id);
+      if (idx !== -1) {
+        this.courses[idx] = { ...this.courses[idx], ...data };
+        return this.courses[idx];
+      }
+      throw new Error('Course not found');
+    }
+  }
+
+  async deleteCourse(id: string): Promise<boolean> {
+    try {
+      await this.request(`/academics/courses/${id}`, { method: 'DELETE' });
+      return true;
+    } catch {
+      this.courses = this.courses.filter((c) => c.id !== id && c.code !== id);
+      return true;
     }
   }
 
@@ -222,7 +291,58 @@ class ApiClient {
       const qs = course_code ? `?course_code=${course_code}` : '';
       return await this.request<Subject[]>(`/academics/subjects${qs}`);
     } catch {
-      return course_code ? mockSubjects.filter((s) => s.course_code === course_code) : mockSubjects;
+      return course_code ? this.subjects.filter((s) => s.course_code === course_code) : this.subjects;
+    }
+  }
+
+  async createSubject(data: Partial<Subject>): Promise<Subject> {
+    try {
+      return await this.request<Subject>('/academics/subjects', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const sub: Subject = {
+        id: `sub-${Date.now()}`,
+        code: data.code || `SUB-${Date.now()}`,
+        title: data.title || 'New Subject Module',
+        course_code: data.course_code || 'BED',
+        semester: Number(data.semester) || 1,
+        credits: Number(data.credits) || 4,
+        full_marks: Number(data.full_marks) || 100,
+        pass_marks: Number(data.pass_marks) || 40,
+        theory_marks: Number(data.theory_marks) || 70,
+        practical_marks: Number(data.practical_marks) || 30,
+        faculty_name: data.faculty_name || 'Dr. Debabrata Roy',
+      };
+      this.subjects.push(sub);
+      return sub;
+    }
+  }
+
+  async updateSubject(id: string, data: Partial<Subject>): Promise<Subject> {
+    try {
+      return await this.request<Subject>(`/academics/subjects/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const idx = this.subjects.findIndex((s) => s.id === id);
+      if (idx !== -1) {
+        this.subjects[idx] = { ...this.subjects[idx], ...data };
+        return this.subjects[idx];
+      }
+      throw new Error('Subject not found');
+    }
+  }
+
+  async deleteSubject(id: string): Promise<boolean> {
+    try {
+      await this.request(`/academics/subjects/${id}`, { method: 'DELETE' });
+      return true;
+    } catch {
+      this.subjects = this.subjects.filter((s) => s.id !== id);
+      return true;
     }
   }
 
@@ -305,7 +425,7 @@ class ApiClient {
       if (ms) {
         return {
           is_verified: true,
-          college: 'Annapurna Memorial College & Sundarban Ashutosh B.Ed. College',
+          college: 'Annapurna Memorial College of Education, Kashinagar',
           student_name: ms.student_name,
           roll_number: ms.roll_number,
           course: ms.course_name,
@@ -374,6 +494,82 @@ class ApiClient {
     }
   }
 
+  async createInvoice(data: Partial<Invoice>): Promise<Invoice> {
+    try {
+      return await this.request<Invoice>('/fees/invoices', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const total = Number(data.amount_due) || 35000;
+      const paid = Number(data.amount_paid) || 0;
+      const inv: Invoice = {
+        id: `inv-${Date.now()}`,
+        invoice_number: data.invoice_number || `INV-2024-${this.invoices.length + 101}`,
+        student_id: data.student_id || 'st-1',
+        student_name: data.student_name || 'Trainee',
+        roll_number: data.roll_number || 'AMC-BED-2024-001',
+        course_code: data.course_code || 'BED',
+        semester: Number(data.semester) || 1,
+        title: data.title || 'Semester Fee',
+        amount_due: total,
+        amount_paid: paid,
+        balance: Math.max(0, total - paid),
+        due_date: data.due_date || '2026-12-31',
+        status: paid >= total ? 'PAID' : paid > 0 ? 'PARTIAL' : 'PENDING',
+        created_at: new Date().toISOString(),
+      };
+      this.invoices.unshift(inv);
+      return inv;
+    }
+  }
+
+  async updateInvoice(id: string, data: Partial<Invoice>): Promise<Invoice> {
+    try {
+      return await this.request<Invoice>(`/fees/invoices/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const idx = this.invoices.findIndex((i) => i.id === id);
+      if (idx !== -1) {
+        const total = data.amount_due !== undefined ? Number(data.amount_due) : this.invoices[idx].amount_due;
+        const paid = data.amount_paid !== undefined ? Number(data.amount_paid) : this.invoices[idx].amount_paid;
+        const bal = Math.max(0, total - paid);
+        this.invoices[idx] = {
+          ...this.invoices[idx],
+          ...data,
+          amount_due: total,
+          amount_paid: paid,
+          balance: bal,
+          status: bal === 0 ? 'PAID' : paid > 0 ? 'PARTIAL' : (data.status || this.invoices[idx].status),
+        };
+        return this.invoices[idx];
+      }
+      throw new Error('Invoice not found');
+    }
+  }
+
+  async deleteInvoice(id: string): Promise<boolean> {
+    try {
+      await this.request(`/fees/invoices/${id}`, { method: 'DELETE' });
+      return true;
+    } catch {
+      this.invoices = this.invoices.filter((i) => i.id !== id);
+      return true;
+    }
+  }
+
+  // --- INSTITUTION PROFILE SETTINGS ---
+  getCollegeProfile() {
+    return this.collegeProfile;
+  }
+
+  updateCollegeProfile(data: Partial<typeof this.collegeProfile>) {
+    this.collegeProfile = { ...this.collegeProfile, ...data };
+    return this.collegeProfile;
+  }
+
   // --- NOTICES ---
   async getNotices(): Promise<Notice[]> {
     try {
@@ -404,6 +600,124 @@ class ApiClient {
       };
       this.notices.unshift(n);
       return n;
+    }
+  }
+
+  // --- UPDATE & DELETE CAPABILITIES FOR SUPER ADMIN ---
+  async updateStudent(id: string, data: Partial<Student>): Promise<Student> {
+    try {
+      return await this.request<Student>(`/students/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const idx = this.students.findIndex((s) => s.id === id);
+      if (idx !== -1) {
+        this.students[idx] = { ...this.students[idx], ...data };
+        return this.students[idx];
+      }
+      throw new Error('Student not found');
+    }
+  }
+
+  async deleteStudent(id: string): Promise<boolean> {
+    try {
+      await this.request(`/students/${id}`, { method: 'DELETE' });
+      return true;
+    } catch {
+      this.students = this.students.filter((s) => s.id !== id);
+      return true;
+    }
+  }
+
+  async updateFaculty(id: string, data: Partial<Faculty>): Promise<Faculty> {
+    try {
+      return await this.request<Faculty>(`/faculty/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const idx = this.faculty.findIndex((f) => f.id === id);
+      if (idx !== -1) {
+        this.faculty[idx] = { ...this.faculty[idx], ...data };
+        return this.faculty[idx];
+      }
+      throw new Error('Faculty not found');
+    }
+  }
+
+  async deleteFaculty(id: string): Promise<boolean> {
+    try {
+      await this.request(`/faculty/${id}`, { method: 'DELETE' });
+      return true;
+    } catch {
+      this.faculty = this.faculty.filter((f) => f.id !== id);
+      return true;
+    }
+  }
+
+  async updateMarksheetScores(
+    id: string,
+    data: { scores: any[]; remarks?: string; status?: MarksheetStatus }
+  ): Promise<Marksheet> {
+    try {
+      return await this.request<Marksheet>(`/examinations/marksheets/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const idx = this.marksheets.findIndex((m) => m.id === id);
+      if (idx !== -1) {
+        let totalObtained = 0;
+        let totalMax = 0;
+        const updatedScores = data.scores || this.marksheets[idx].subject_scores;
+        updatedScores.forEach((s) => {
+          totalObtained += (Number(s.internal_marks) || 0) + (Number(s.external_marks) || 0);
+          totalMax += Number(s.total_maximum) || 100;
+        });
+
+        const percent = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
+        const sgpa = Number((percent / 10).toFixed(2));
+
+        this.marksheets[idx] = {
+          ...this.marksheets[idx],
+          subject_scores: updatedScores,
+          total_marks_obtained: totalObtained,
+          total_marks_maximum: totalMax,
+          percentage: Number(percent.toFixed(1)),
+          sgpa,
+          remarks: data.remarks ?? this.marksheets[idx].remarks,
+          status: data.status ?? this.marksheets[idx].status,
+        };
+        return this.marksheets[idx];
+      }
+      throw new Error('Marksheet not found');
+    }
+  }
+
+  async updateNotice(id: string, data: Partial<Notice>): Promise<Notice> {
+    try {
+      return await this.request<Notice>(`/notices/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    } catch {
+      const idx = this.notices.findIndex((n) => n.id === id);
+      if (idx !== -1) {
+        this.notices[idx] = { ...this.notices[idx], ...data };
+        return this.notices[idx];
+      }
+      throw new Error('Notice not found');
+    }
+  }
+
+  async deleteNotice(id: string): Promise<boolean> {
+    try {
+      await this.request(`/notices/${id}`, { method: 'DELETE' });
+      return true;
+    } catch {
+      this.notices = this.notices.filter((n) => n.id !== id);
+      return true;
     }
   }
 

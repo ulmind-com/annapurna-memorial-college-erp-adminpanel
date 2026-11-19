@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Plus, Mail, Phone, BookOpen, GraduationCap, CheckCircle } from 'lucide-react';
+import { Users, Search, Plus, Mail, Phone, BookOpen, GraduationCap, CheckCircle, Edit3, Trash2 } from 'lucide-react';
 import { Faculty } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
@@ -11,8 +11,10 @@ export const FacultyView: React.FC = () => {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const { playSuccess } = useSound();
+  const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
+  const { playSuccess, playPop } = useSound();
 
+  // Add Form
   const [name, setName] = useState('');
   const [empId, setEmpId] = useState('');
   const [email, setEmail] = useState('');
@@ -21,6 +23,16 @@ export const FacultyView: React.FC = () => {
   const [designation, setDesignation] = useState('Assistant Professor');
   const [qualification, setQualification] = useState('M.Ed., Ph.D.');
   const [specialization, setSpecialization] = useState('Educational Psychology');
+
+  // Edit Form
+  const [editName, setEditName] = useState('');
+  const [editEmpId, setEditEmpId] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editDepartment, setEditDepartment] = useState('');
+  const [editDesignation, setEditDesignation] = useState('');
+  const [editQualification, setEditQualification] = useState('');
+  const [editSpecialization, setEditSpecialization] = useState('');
 
   const loadFaculty = async () => {
     try {
@@ -49,9 +61,10 @@ export const FacultyView: React.FC = () => {
       designation,
       qualification,
       specialization,
-      assigned_subjects: ['BED-101'],
+      assigned_subjects: [],
       status: 'ACTIVE',
-      avatar_url: `https://api.dicebear.com/7.x/micah/svg?seed=${empId}`,
+      is_active: true,
+      created_at: new Date().toISOString(),
     };
 
     setFaculty([newFac, ...faculty]);
@@ -63,23 +76,71 @@ export const FacultyView: React.FC = () => {
     setPhone('');
   };
 
+  const handleOpenEdit = (f: Faculty) => {
+    playPop();
+    setEditingFaculty(f);
+    setEditName(f.full_name);
+    setEditEmpId(f.employee_id);
+    setEditEmail(f.email);
+    setEditPhone(f.phone || '');
+    setEditDepartment(f.department);
+    setEditDesignation(f.designation);
+    setEditQualification(f.qualification);
+    setEditSpecialization(f.specialization || '');
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingFaculty) return;
+
+    try {
+      await api.updateFaculty(editingFaculty.id, {
+        full_name: editName.trim(),
+        employee_id: editEmpId.trim(),
+        email: editEmail.trim(),
+        phone: editPhone.trim(),
+        department: editDepartment,
+        designation: editDesignation,
+        qualification: editQualification,
+        specialization: editSpecialization,
+      });
+
+      playSuccess();
+      setEditingFaculty(null);
+      loadFaculty();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update faculty member');
+    }
+  };
+
+  const handleDelete = async (f: Faculty) => {
+    if (!window.confirm(`Are you sure you want to remove faculty member ${f.full_name}?`)) return;
+    try {
+      await api.deleteFaculty(f.id);
+      playPop();
+      loadFaculty();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete faculty');
+    }
+  };
+
   const filtered = faculty.filter(
     (f) =>
       f.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      f.employee_id.toLowerCase().includes(search.toLowerCase()) ||
-      f.department.toLowerCase().includes(search.toLowerCase())
+      f.department.toLowerCase().includes(search.toLowerCase()) ||
+      f.employee_id.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <Users className="w-5 h-5 text-indigo-400" />
-            Faculty & Academic Staff Directory
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
+            <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            <span>Faculty & Academic Staff Directory</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Teaching staff profiles, qualifications, NCTE subject allotments, and contact details
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            NCTE Recognized Teacher Educators, Assistant Professors, and Curriculum Mentors
           </p>
         </div>
 
@@ -93,187 +154,316 @@ export const FacultyView: React.FC = () => {
         </SoundButton>
       </div>
 
-      {/* Search */}
-      <div className="glass-card p-4 rounded-xl flex items-center justify-between">
+      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
         <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search faculty by name, employee ID, or department..."
+            placeholder="Search faculty by name, ID, or subject..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-700/70 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+
+        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+          {filtered.length} Educators
+        </span>
       </div>
 
-      {/* Faculty Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filtered.map((f) => (
           <div
             key={f.id}
-            className="glass-panel p-5 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all shadow-xl flex flex-col justify-between"
+            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 transition-all shadow-sm flex flex-col justify-between space-y-4"
           >
             <div>
               <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={f.avatar_url || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150'}
-                    alt={f.full_name}
-                    className="w-12 h-12 rounded-full border border-indigo-500/30 object-cover shadow-md"
-                  />
-                  <div>
-                    <div className="text-sm font-bold text-white leading-tight">{f.full_name}</div>
-                    <div className="text-[11px] text-indigo-400 font-medium">{f.designation}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">{f.employee_id}</div>
-                  </div>
+                <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                  {f.employee_id}
+                </span>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(f)}
+                    title="Edit Faculty Record"
+                    className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(f)}
+                    title="Remove Faculty"
+                    className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <Badge status={f.status} size="sm" />
               </div>
 
-              <div className="mt-4 space-y-2 text-xs">
-                <div className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-800">
-                  <div className="text-slate-400 text-[10px] uppercase font-semibold">Department</div>
-                  <div className="text-slate-200 mt-0.5">{f.department}</div>
-                </div>
+              <div className="mt-3">
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug">{f.full_name}</h3>
+                <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mt-0.5">{f.designation}</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">{f.department}</div>
+              </div>
 
-                <div className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-800">
-                  <div className="text-slate-400 text-[10px] uppercase font-semibold">Qualification</div>
-                  <div className="text-slate-200 mt-0.5 font-medium">{f.qualification}</div>
-                  {f.specialization && (
-                    <div className="text-[10px] text-slate-400 mt-0.5 italic">{f.specialization}</div>
-                  )}
+              <div className="mt-4 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5 text-xs">
+                <div className="text-slate-700 dark:text-slate-300">
+                  <span className="font-bold">Qualification: </span>
+                  <span>{f.qualification}</span>
                 </div>
-
-                <div className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-800">
-                  <div className="text-slate-400 text-[10px] uppercase font-semibold">Assigned Subjects</div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {f.assigned_subjects.map((sub) => (
-                      <span
-                        key={sub}
-                        className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-[10px] font-mono font-semibold"
-                      >
-                        {sub}
-                      </span>
-                    ))}
+                {f.specialization && (
+                  <div className="text-slate-700 dark:text-slate-300">
+                    <span className="font-bold">Specialization: </span>
+                    <span>{f.specialization}</span>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-              <span className="flex items-center gap-1">
-                <Phone className="w-3 h-3 text-slate-500" />
-                {f.phone}
-              </span>
-              <span className="flex items-center gap-1 truncate max-w-[140px]">
-                <Mail className="w-3 h-3 text-slate-500" />
-                {f.email}
-              </span>
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+              <span className="truncate">{f.email}</span>
+              <span>{f.phone}</span>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Add Faculty Modal */}
+      {/* Modal: Add Faculty */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        title="Add Faculty Member"
-        subtitle="Sundarban Ashutosh B.Ed. College & Annapurna Memorial College"
+        title="Appoint New Faculty Member"
+        subtitle="Annapurna Memorial College of Education, Kashinagar, South 24 Parganas"
         maxWidth="lg"
       >
         <form onSubmit={handleAddSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Full Name *</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Dr. Full Name"
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500"
+                placeholder="Dr. S. Chatterjee"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Employee ID *</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Employee ID *</label>
               <input
                 type="text"
                 required
                 value={empId}
                 onChange={(e) => setEmpId(e.target.value)}
-                placeholder="AMC-FAC-005"
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                placeholder="AMCE-FAC-011"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+          </div>
 
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Email *</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Email *</label>
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="faculty@annapurnacollege.org"
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Phone</label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+91 9876543210"
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Designation</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Phone</label>
               <input
                 type="text"
-                value={designation}
-                onChange={(e) => setDesignation(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+91 98300 00000"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+          </div>
 
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Qualification</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Designation</label>
+              <select
+                value={designation}
+                onChange={(e) => setDesignation(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Professor & Principal">Professor & Principal</option>
+                <option value="Associate Professor">Associate Professor</option>
+                <option value="Assistant Professor">Assistant Professor</option>
+                <option value="Pedagogy Instructor">Pedagogy Instructor</option>
+                <option value="Librarian">Librarian</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Department</label>
+              <input
+                type="text"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Qualification</label>
               <input
                 type="text"
                 value={qualification}
                 onChange={(e) => setQualification(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500"
+                placeholder="M.Ed., Ph.D., NET"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Specialization</label>
+              <input
+                type="text"
+                value={specialization}
+                onChange={(e) => setSpecialization(e.target.value)}
+                placeholder="Pedagogy of Mathematics"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-            <SoundButton
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <button
               type="button"
-              variant="outline"
-              size="sm"
               onClick={() => setIsAddModalOpen(false)}
+              className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
             >
               Cancel
-            </SoundButton>
-            <SoundButton
-              type="submit"
-              variant="primary"
-              size="sm"
-              soundType="success"
-              icon={<CheckCircle className="w-4 h-4" />}
-            >
-              Add Member
+            </button>
+            <SoundButton type="submit" variant="primary" soundType="success">
+              Save Faculty Record
             </SoundButton>
           </div>
         </form>
       </Modal>
+
+      {/* Modal: Edit Faculty */}
+      {editingFaculty && (
+        <Modal
+          isOpen={!!editingFaculty}
+          onClose={() => setEditingFaculty(null)}
+          title={`Edit Faculty: ${editingFaculty.full_name}`}
+          subtitle="Super Admin Direct Edit Desk"
+          maxWidth="lg"
+        >
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Employee ID *</label>
+                <input
+                  type="text"
+                  required
+                  value={editEmpId}
+                  onChange={(e) => setEditEmpId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Phone</label>
+                <input
+                  type="text"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Designation</label>
+                <input
+                  type="text"
+                  value={editDesignation}
+                  onChange={(e) => setEditDesignation(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Department</label>
+                <input
+                  type="text"
+                  value={editDepartment}
+                  onChange={(e) => setEditDepartment(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Qualification</label>
+                <input
+                  type="text"
+                  value={editQualification}
+                  onChange={(e) => setEditQualification(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Specialization</label>
+                <input
+                  type="text"
+                  value={editSpecialization}
+                  onChange={(e) => setEditSpecialization(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditingFaculty(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+              >
+                Cancel
+              </button>
+              <SoundButton type="submit" variant="primary" soundType="success">
+                Save & Update Faculty
+              </SoundButton>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };
