@@ -282,6 +282,19 @@ class ApiClient {
     this.subjects = this.getCachedList('annapurna_subjects', mockSubjects);
     this.studyMaterials = this.getCachedList('annapurna_study_materials', mockStudyMaterials);
     this.marksheets = this.getCachedList('annapurna_marksheets', mockMarksheets);
+    this.notices = this.getCachedList('annapurna_notices', mockNotices);
+
+    // Background keep-alive worker: Prevents Render free-tier spin-down & keeps backend warm
+    if (typeof window !== 'undefined') {
+      const pingHealth = () => {
+        const rootUrl = BASE_URL.replace(/\/api\/v1$/, '');
+        fetch(`${rootUrl}/health`, { mode: 'no-cors' }).catch(() => {});
+      };
+      // Initial ping on app launch
+      setTimeout(pingHealth, 1000);
+      // Periodic ping every 4 minutes while browser session is active
+      setInterval(pingHealth, 4 * 60 * 1000);
+    }
   }
 
   public setToken(token: string | null) {
@@ -1058,34 +1071,53 @@ class ApiClient {
   // --- NOTICES ---
   async getNotices(): Promise<Notice[]> {
     try {
-      return await this.request<Notice[]>('/notices');
-    } catch {
-      return this.notices;
+      const res = await this.request<Notice[]>('/notices');
+      if (Array.isArray(res) && res.length > 0) {
+        this.notices = res;
+        this.setCachedList('annapurna_notices', res);
+        return res;
+      }
+    } catch (e) {
+      // Return cached notices or mock fallback
     }
+    return this.getCachedList<Notice>('annapurna_notices', this.notices);
   }
 
   async createNotice(data: Partial<Notice>): Promise<Notice> {
     try {
-      return await this.request<Notice>('/notices', {
+      const res = await this.request<Notice>('/notices', {
         method: 'POST',
         body: JSON.stringify(data),
       });
-    } catch {
-      const n: Notice = {
-        id: `not-${Date.now()}`,
-        title: data.title || 'New Announcement',
-        content: data.content || '',
-        category: data.category || 'ACADEMIC',
-        target_audience: data.target_audience || 'ALL',
-        priority: data.priority || 'NORMAL',
-        is_pinned: !!data.is_pinned,
-        published_by_name: 'Principal Arnab Senapati',
-        views_count: 1,
-        created_at: new Date().toISOString(),
-      };
-      this.notices.unshift(n);
-      return n;
+      if (res && res.id) {
+        this.notices = [res, ...this.notices.filter((n) => n.id !== res.id)];
+        this.setCachedList('annapurna_notices', this.notices);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('annapurna_notice_created', { detail: res }));
+        }
+        return res;
+      }
+    } catch (e) {
+      console.warn('Backend createNotice failed, saving locally:', e);
     }
+    const n: Notice = {
+      id: `not-${Date.now()}`,
+      title: data.title || 'New Announcement',
+      content: data.content || '',
+      category: data.category || 'ACADEMIC',
+      target_audience: data.target_audience || 'ALL',
+      priority: data.priority || 'NORMAL',
+      is_pinned: !!data.is_pinned,
+      published_by_name: 'Dr. Arnab Senapati, Principal',
+      views_count: 1,
+      created_at: new Date().toISOString(),
+    };
+    this.notices = [n, ...this.notices.filter((item) => item.id !== n.id)];
+    this.setCachedList('annapurna_notices', this.notices);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('annapurna_notice_created', { detail: n }));
+    }
+    return n;
   }
 
   // --- UPDATE & DELETE CAPABILITIES FOR SUPER ADMIN ---

@@ -53,6 +53,16 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
 
   useEffect(() => {
+    const handleNoticeCreated = (e: any) => {
+      if (e.detail) {
+        setNotices((prev) => [e.detail, ...prev.filter((n) => n.id !== e.detail.id)]);
+      }
+    };
+    window.addEventListener('annapurna_notice_created', handleNoticeCreated);
+    return () => window.removeEventListener('annapurna_notice_created', handleNoticeCreated);
+  }, []);
+
+  useEffect(() => {
     const loadTeacherData = async () => {
       try {
         const [cList, sRes, nList, mList] = await Promise.all([

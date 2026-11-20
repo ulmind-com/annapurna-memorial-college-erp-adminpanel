@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Search, Plus, Mail, Phone, BookOpen, GraduationCap, CheckCircle, Edit3, Trash2, KeyRound, Copy, Check } from 'lucide-react';
-import { Faculty } from '../../types';
+import { Faculty, Course } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
@@ -9,6 +9,7 @@ import { useSound } from '../../context/SoundContext';
 
 export const FacultyView: React.FC = () => {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
@@ -43,8 +44,9 @@ export const FacultyView: React.FC = () => {
 
   const loadFaculty = async () => {
     try {
-      const res = await api.getFaculty();
+      const [res, cList] = await Promise.all([api.getFaculty(), api.getCourses()]);
       setFaculty(res.items);
+      setCourses(cList);
     } catch (e) {
       console.error(e);
     }
@@ -53,6 +55,18 @@ export const FacultyView: React.FC = () => {
   useEffect(() => {
     loadFaculty();
   }, []);
+
+  const departmentSuggestions = Array.from(
+    new Set([
+      'Department of Teacher Education',
+      'Department of Elementary Education',
+      'Department of Computer Science & Engineering',
+      'Department of Educational Foundation & Pedagogy',
+      ...courses.map((c) => `Department of ${c.name}`),
+      ...courses.map((c) => `Department of ${c.code}`),
+      ...faculty.map((f) => f.department).filter(Boolean),
+    ])
+  );
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -321,8 +335,10 @@ export const FacultyView: React.FC = () => {
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Department</label>
               <input
                 type="text"
+                list="department-suggestions"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
+                placeholder="Select or enter department"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -434,8 +450,10 @@ export const FacultyView: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Department</label>
                 <input
                   type="text"
+                  list="department-suggestions"
                   value={editDepartment}
                   onChange={(e) => setEditDepartment(e.target.value)}
+                  placeholder="Select or enter department"
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -544,6 +562,13 @@ export const FacultyView: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* Dynamic Department Datalist Auto-Suggestions */}
+      <datalist id="department-suggestions">
+        {departmentSuggestions.map((dep) => (
+          <option key={dep} value={dep} />
+        ))}
+      </datalist>
     </div>
   );
 };

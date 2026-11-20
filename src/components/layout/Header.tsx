@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Volume2,
   VolumeX,
@@ -13,25 +13,93 @@ import {
   Users,
   KeyRound,
   CheckCircle2,
+  CheckCheck,
+  ArrowRight,
 } from 'lucide-react';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getCurrentLiveIST } from '../../utils/date';
 import { api } from '../../services/api';
+import { Notice } from '../../types';
 import { Modal } from '../common/Modal';
 import { SoundButton } from '../common/SoundButton';
 
 interface HeaderProps {
   onOpenSearch: () => void;
+  onNavigate?: (view: string) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenSearch, onNavigate }) => {
   const { soundEnabled, toggleSound, playHaptic, playPop, playSuccess, playAlert } = useSound();
   const { user, activeRole, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
 
   const [istTime, setIstTime] = useState(getCurrentLiveIST());
+
+  // Live Notifications Dropdown State
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [readNoticeIds, setReadNoticeIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('amce_read_notices');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {}
+      }
+    }
+    return [];
+  });
+  const notifDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(e.target as Node)) {
+        setIsNotificationsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const loadNotices = async () => {
+      try {
+        const list = await api.getNotices();
+        setNotices(list);
+      } catch {}
+    };
+    loadNotices();
+
+    const handleNoticeCreated = (e: any) => {
+      if (e.detail) {
+        setNotices((prev) => [e.detail, ...prev.filter((n) => n.id !== e.detail.id)]);
+      }
+    };
+    window.addEventListener('annapurna_notice_created', handleNoticeCreated);
+    return () => window.removeEventListener('annapurna_notice_created', handleNoticeCreated);
+  }, []);
+
+  const unreadCount = notices.filter((n) => !readNoticeIds.includes(n.id)).length;
+
+  const markAllAsRead = () => {
+    playSuccess();
+    const allIds = notices.map((n) => n.id);
+    setReadNoticeIds(allIds);
+    localStorage.setItem('amce_read_notices', JSON.stringify(allIds));
+  };
+
+  const handleNoticeClick = (noticeId: string) => {
+    playPop();
+    if (!readNoticeIds.includes(noticeId)) {
+      const updated = [...readNoticeIds, noticeId];
+      setReadNoticeIds(updated);
+      localStorage.setItem('amce_read_notices', JSON.stringify(updated));
+    }
+    setIsNotificationsOpen(false);
+    onNavigate?.('notices');
+  };
 
   // Change Password state
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -147,17 +215,107 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch }) => {
           )}
         </button>
 
-        {/* Notifications Icon with active badge */}
-        <button
-          type="button"
-          onClick={playHaptic}
-          className="relative p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-bold text-[9px] flex items-center justify-center shadow-xs">
-            3
-          </span>
-        </button>
+        {/* Notifications Bell with Dynamic Badge & Interactive Live Dropdown */}
+        <div className="relative" ref={notifDropdownRef}>
+          <button
+            type="button"
+            onClick={() => {
+              playHaptic();
+              setIsNotificationsOpen((prev) => !prev);
+            }}
+            className="relative p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+            title="Campus Notices & Announcements"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-bold text-[9px] flex items-center justify-center shadow-xs animate-pulse">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {isNotificationsOpen && (
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+                    Campus Notices & Circulars
+                  </span>
+                </div>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={markAllAsRead}
+                    className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                  >
+                    <CheckCheck className="w-3 h-3" />
+                    Mark all read
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                {notices.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400">
+                    No active circulars on the notice board.
+                  </div>
+                ) : (
+                  notices.slice(0, 6).map((n) => {
+                    const isUnread = !readNoticeIds.includes(n.id);
+                    return (
+                      <div
+                        key={n.id}
+                        onClick={() => handleNoticeClick(n.id)}
+                        className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer flex gap-3 text-left ${
+                          isUnread ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
+                        }`}
+                      >
+                        <div className="pt-1">
+                          <span
+                            className={`w-2 h-2 rounded-full block ${
+                              isUnread ? 'bg-blue-600' : 'bg-transparent'
+                            }`}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                              {n.category || 'NOTICE'}
+                            </span>
+                            <span className="text-[9px] text-slate-400">
+                              {n.created_at ? new Date(n.created_at).toLocaleDateString() : 'Live'}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-bold text-slate-900 dark:text-white mt-1 line-clamp-1">
+                            {n.title}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">
+                            {n.content}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsNotificationsOpen(false);
+                    onNavigate?.('notices');
+                  }}
+                  className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center justify-center gap-1 mx-auto"
+                >
+                  <span>Open Institutional Notice Board</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
 

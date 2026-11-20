@@ -15,9 +15,11 @@ import {
   ArrowRight,
   ShieldCheck,
   Tag,
+  Bell,
+  AlertCircle,
 } from 'lucide-react';
 import { api } from '../../services/api';
-import { Marksheet, Student, StudyMaterial, LeaveApplication, Subject } from '../../types';
+import { Marksheet, Student, StudyMaterial, LeaveApplication, Subject, Notice } from '../../types';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { useSound } from '../../context/SoundContext';
@@ -35,7 +37,18 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
   const [studyMaterials, setStudyMaterials] = useState<StudyMaterial[]>([]);
   const [leaves, setLeaves] = useState<LeaveApplication[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
   const { playSuccess, playHaptic, playPop } = useSound();
+
+  useEffect(() => {
+    const handleNoticeCreated = (e: any) => {
+      if (e.detail) {
+        setNotices((prev) => [e.detail, ...prev.filter((n) => n.id !== e.detail.id)]);
+      }
+    };
+    window.addEventListener('annapurna_notice_created', handleNoticeCreated);
+    return () => window.removeEventListener('annapurna_notice_created', handleNoticeCreated);
+  }, []);
 
   useEffect(() => {
     const loadStudentData = async () => {
@@ -55,7 +68,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
         }
 
         // 2. Fetch marksheet
-        const msList = await api.getExamMarksheets('exam-1');
+        const msList = await api.getAllMarksheets();
         const studentRoll = found?.roll_number || user?.roll_number || 'AMC-TR-2024';
         const myMarksheet = msList.find(
           (m) =>
@@ -81,6 +94,10 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
         // 5. Fetch subjects for schedule
         const subList = await api.getSubjects(courseCode);
         setSubjects(subList);
+
+        // 6. Fetch live campus notices
+        const nList = await api.getNotices();
+        setNotices(nList);
       } catch (e) {
         console.error('Error loading student dashboard data:', e);
       }
@@ -280,6 +297,75 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
           </div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Uploaded by Faculty</div>
         </div>
+      </div>
+
+      {/* Live Campus Announcements & Official Circulars */}
+      <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 uppercase tracking-wider">
+                Official Circulars
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Direct from Principal & Executive Administration
+              </span>
+            </div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white mt-1 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              Campus Announcements & Institutional Notices
+            </h3>
+          </div>
+          <SoundButton
+            onClick={() => onNavigate('notices')}
+            size="sm"
+            variant="outline"
+            icon={<ArrowRight className="w-3.5 h-3.5" />}
+          >
+            All Notices ({notices.length})
+          </SoundButton>
+        </div>
+
+        {notices.length === 0 ? (
+          <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+            <p className="text-xs text-slate-400">No active circulars at this moment.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {notices
+              .filter((n) => n.target_audience === 'ALL' || n.target_audience === 'STUDENTS' || !n.target_audience)
+              .slice(0, 3)
+              .map((n) => (
+                <div
+                  key={n.id}
+                  className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between hover:shadow-sm transition-all"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                        {n.category || 'NOTICE'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {n.created_at ? new Date(n.created_at).toLocaleDateString() : 'Live'}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1">
+                      {n.title}
+                    </h4>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-3 leading-relaxed">
+                      {n.content}
+                    </p>
+                  </div>
+                  <div className="pt-3 mt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                    <span>By: {n.published_by_name || 'Administration'}</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-bold cursor-pointer" onClick={() => onNavigate('notices')}>
+                      Read More &rarr;
+                    </span>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
       </div>
 
       {/* CORE FEATURE: Notes & Study Materials Uploaded by Teachers */}
