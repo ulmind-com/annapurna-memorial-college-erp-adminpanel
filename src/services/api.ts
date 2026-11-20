@@ -281,6 +281,7 @@ class ApiClient {
     this.courses = this.getCachedList('annapurna_courses', mockCourses);
     this.subjects = this.getCachedList('annapurna_subjects', mockSubjects);
     this.studyMaterials = this.getCachedList('annapurna_study_materials', mockStudyMaterials);
+    this.marksheets = this.getCachedList('annapurna_marksheets', mockMarksheets);
   }
 
   public setToken(token: string | null) {
@@ -806,9 +807,85 @@ class ApiClient {
           action: action.toUpperCase(),
           remarks: remarks || `Status transitioned to ${nextStatus}`,
         });
+        this.setCachedList('annapurna_marksheets', this.marksheets);
         return { status: nextStatus };
       }
       throw new Error('Marksheet not found');
+    }
+  }
+
+  async getAllMarksheets(): Promise<Marksheet[]> {
+    try {
+      const res = await this.request<Marksheet[]>('/examinations/marksheets');
+      if (Array.isArray(res) && res.length > 0) {
+        this.marksheets = res;
+        this.setCachedList('annapurna_marksheets', res);
+        return res;
+      }
+    } catch {}
+    return this.marksheets;
+  }
+
+  async saveMarksheet(data: Partial<Marksheet>): Promise<Marksheet> {
+    try {
+      const res = await this.request<Marksheet>('/examinations/marksheets', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      this.marksheets = [res, ...this.marksheets.filter((m) => m.id !== res.id)];
+      this.setCachedList('annapurna_marksheets', this.marksheets);
+      return res;
+    } catch {
+      const existingIdx = this.marksheets.findIndex(
+        (m) =>
+          m.id === data.id ||
+          (m.student_id === data.student_id && m.semester === data.semester) ||
+          (m.roll_number === data.roll_number && m.semester === data.semester)
+      );
+      const updatedMarksheet: Marksheet = {
+        id: data.id || `ms-${Date.now()}`,
+        exam_id: data.exam_id || 'exam-dynamic',
+        exam_title: data.exam_title || `${data.course_name || 'Program'} Semester ${data.semester || 1} Examination`,
+        student_id: data.student_id || 'st-unknown',
+        roll_number: data.roll_number || 'AMC-000',
+        registration_number: data.registration_number,
+        student_name: data.student_name || 'Trainee',
+        course_code: data.course_code || 'BED',
+        course_name: data.course_name || 'Degree Program',
+        semester: Number(data.semester) || 1,
+        academic_session: data.academic_session || '2024-2026',
+        subject_scores: data.subject_scores || [],
+        total_marks_obtained: data.total_marks_obtained || 0,
+        total_marks_maximum: data.total_marks_maximum || 500,
+        grand_max_marks: data.grand_max_marks || data.total_marks_maximum || 500,
+        percentage: data.percentage || 0,
+        overall_percentage: data.overall_percentage || data.percentage || 0,
+        sgpa: data.sgpa || 0,
+        cgpa: data.cgpa || data.sgpa || 0,
+        letter_grade: data.letter_grade || 'P',
+        result_status: data.result_status || 'PASS',
+        status: data.status || 'PUBLISHED',
+        qr_code_hash: data.qr_code_hash || `AMCE-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+        audit_trail: data.audit_trail || [
+          {
+            stage: 'PUBLISHED',
+            performed_by_id: 'admin-1',
+            performed_by_name: 'Principal Arnab Senapati',
+            performed_by_role: 'SUPER_ADMIN',
+            timestamp: new Date().toISOString(),
+            action: 'GENERATED_AND_PUBLISHED',
+            remarks: 'Semester marksheet generated and certified.',
+          },
+        ],
+        created_at: data.created_at || new Date().toISOString(),
+      };
+      if (existingIdx !== -1) {
+        this.marksheets[existingIdx] = updatedMarksheet;
+      } else {
+        this.marksheets.unshift(updatedMarksheet);
+      }
+      this.setCachedList('annapurna_marksheets', this.marksheets);
+      return updatedMarksheet;
     }
   }
 
@@ -1097,6 +1174,7 @@ class ApiClient {
           remarks: data.remarks ?? this.marksheets[idx].remarks,
           status: data.status ?? this.marksheets[idx].status,
         };
+        this.setCachedList('annapurna_marksheets', this.marksheets);
         return this.marksheets[idx];
       }
       throw new Error('Marksheet not found');

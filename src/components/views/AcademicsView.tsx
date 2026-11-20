@@ -11,8 +11,13 @@ import {
   Trash2,
   GraduationCap,
   Sparkles,
+  Users,
+  Search,
+  Mail,
+  Phone,
+  UserCheck,
 } from 'lucide-react';
-import { Course, Subject } from '../../types';
+import { Course, Subject, Student } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
@@ -28,6 +33,9 @@ export const AcademicsView: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<string>('BED');
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [activeTab, setActiveTab] = useState<'CURRICULUM' | 'STUDENTS'>('CURRICULUM');
+  const [studentSearch, setStudentSearch] = useState<string>('');
 
   // Course Modals
   const [isAddCourseModal, setIsAddCourseModal] = useState(false);
@@ -62,13 +70,17 @@ export const AcademicsView: React.FC = () => {
 
   const loadAcademics = async () => {
     try {
-      const cList = await api.getCourses();
+      const [cList, sList, stRes] = await Promise.all([
+        api.getCourses(),
+        api.getSubjects(selectedCourse),
+        api.getStudents(),
+      ]);
       setCourses(cList);
       if (cList.length > 0 && !cList.some((c) => c.code === selectedCourse)) {
         setSelectedCourse(cList[0].code);
       }
-      const sList = await api.getSubjects(selectedCourse);
       setSubjects(sList);
+      setStudents(stRes.items || []);
     } catch (e) {
       console.error(e);
     }
@@ -212,6 +224,23 @@ export const AcademicsView: React.FC = () => {
 
   const activeCourseObj = courses.find((c) => c.code === selectedCourse);
 
+  const enrolledStudents = students.filter((s) => {
+    const codeMatch = s.course_code?.trim().toUpperCase() === selectedCourse?.trim().toUpperCase();
+    const nameMatch = activeCourseObj?.name && s.course_name?.toLowerCase().includes(activeCourseObj.name.toLowerCase());
+    return Boolean(codeMatch || nameMatch);
+  });
+
+  const filteredEnrolledStudents = enrolledStudents.filter((s) => {
+    if (!studentSearch.trim()) return true;
+    const q = studentSearch.toLowerCase();
+    return (
+      s.full_name?.toLowerCase().includes(q) ||
+      s.roll_number?.toLowerCase().includes(q) ||
+      s.email?.toLowerCase().includes(q) ||
+      (s.phone && s.phone.includes(q))
+    );
+  });
+
   return (
     <div className="space-y-6 text-slate-900 dark:text-slate-100 animate-in fade-in duration-300">
       {/* Header Desk */}
@@ -221,7 +250,9 @@ export const AcademicsView: React.FC = () => {
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 uppercase tracking-wider">
               Academic Curriculum
             </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">BSAEU & NCTE Regulations</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              {activeCourseObj?.affiliation || 'Affiliated & Approved Degree Programs'}
+            </span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-1 flex items-center gap-2">
             <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -249,6 +280,12 @@ export const AcademicsView: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {courses.map((c) => {
           const isSelected = selectedCourse === c.code;
+          const courseTraineeCount = students.filter((s) => {
+            const codeMatch = s.course_code?.trim().toUpperCase() === c.code?.trim().toUpperCase();
+            const nameMatch = c.name && s.course_name?.toLowerCase().includes(c.name.toLowerCase());
+            return Boolean(codeMatch || nameMatch);
+          }).length;
+
           return (
             <div
               key={c.id}
@@ -298,7 +335,7 @@ export const AcademicsView: React.FC = () => {
 
               <h3 className="text-sm font-extrabold text-slate-900 dark:text-white mt-3 leading-snug">{c.name}</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                {c.description || 'Comprehensive professional educator curriculum conforming to national teacher standards.'}
+                {c.description || 'Comprehensive curriculum conforming to national education standards.'}
               </p>
 
               <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-200/80 dark:border-slate-800 text-[11px]">
@@ -312,7 +349,7 @@ export const AcademicsView: React.FC = () => {
                   Intake: <span className="font-bold text-slate-800 dark:text-slate-200">{c.max_intake} Trainees</span>
                 </div>
                 <div className="text-slate-500 dark:text-slate-400 text-right truncate">
-                  Affiliation: <span className="font-bold text-slate-800 dark:text-slate-200">{c.affiliation?.split('&')[0]}</span>
+                  Enrolled: <span className="font-bold text-blue-600 dark:text-blue-400">{courseTraineeCount} Trainees</span>
                 </div>
               </div>
             </div>
@@ -320,114 +357,271 @@ export const AcademicsView: React.FC = () => {
         })}
       </div>
 
-      {/* Subjects Catalog for Selected Course */}
-      <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                {selectedCourse}
-              </span>
-              <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-                <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                Syllabus & Subject Modules
-              </h3>
+      {/* Program Details: Tab Bar */}
+      <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <button
+          type="button"
+          onClick={() => { playClick(); setActiveTab('CURRICULUM'); }}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all ${
+            activeTab === 'CURRICULUM'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          Syllabus & Subject Modules ({subjects.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { playClick(); setActiveTab('STUDENTS'); }}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all ${
+            activeTab === 'STUDENTS'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <GraduationCap className="w-4 h-4" />
+          Enrolled Trainees Roster ({enrolledStudents.length})
+        </button>
+      </div>
+
+      {/* Tab 1: Subjects Catalog for Selected Course */}
+      {activeTab === 'CURRICULUM' && (
+        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                  {selectedCourse}
+                </span>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  Syllabus & Subject Modules
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {activeCourseObj ? activeCourseObj.name : selectedCourse} • {subjects.length} Total Curricular Modules
+              </p>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {activeCourseObj ? activeCourseObj.name : selectedCourse} • {subjects.length} Total Curricular Modules
-            </p>
+
+            {isSuperAdmin && (
+              <SoundButton
+                onClick={handleOpenAddSubject}
+                size="sm"
+                variant="secondary"
+                soundType="pop"
+                icon={<Plus className="w-3.5 h-3.5" />}
+              >
+                Add Subject Module
+              </SoundButton>
+            )}
           </div>
 
-          {isSuperAdmin && (
-            <SoundButton
-              onClick={handleOpenAddSubject}
-              size="sm"
-              variant="secondary"
-              soundType="pop"
-              icon={<Plus className="w-3.5 h-3.5" />}
-            >
-              Add Subject Module
-            </SoundButton>
-          )}
-        </div>
-
-        {/* Subjects Table */}
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-extrabold">
-                <th className="py-3 px-4">Subject Code</th>
-                <th className="py-3 px-4">Title & Module Name</th>
-                <th className="py-3 px-4 text-center">Semester</th>
-                <th className="py-3 px-4 text-center">Credits</th>
-                <th className="py-3 px-4 text-center">Theory (Max)</th>
-                <th className="py-3 px-4 text-center">Practicum (Max)</th>
-                <th className="py-3 px-4 text-center">Full Marks</th>
-                <th className="py-3 px-4">Assigned Faculty</th>
-                {isSuperAdmin && <th className="py-3 px-4 text-right">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {subjects.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
-                    No subjects defined for this course yet.
-                  </td>
+          {/* Subjects Table */}
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-extrabold">
+                  <th className="py-3 px-4">Subject Code</th>
+                  <th className="py-3 px-4">Title & Module Name</th>
+                  <th className="py-3 px-4 text-center">Semester</th>
+                  <th className="py-3 px-4 text-center">Credits</th>
+                  <th className="py-3 px-4 text-center">Theory (Max)</th>
+                  <th className="py-3 px-4 text-center">Practicum (Max)</th>
+                  <th className="py-3 px-4 text-center">Full Marks</th>
+                  <th className="py-3 px-4">Assigned Faculty</th>
+                  {isSuperAdmin && <th className="py-3 px-4 text-right">Actions</th>}
                 </tr>
-              ) : (
-                subjects.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-blue-600 dark:text-blue-400">{s.code}</td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{s.title}</td>
-                    <td className="py-3.5 px-4 text-center font-bold text-slate-700 dark:text-slate-300">
-                      Sem {s.semester}
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {subjects.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-slate-400">
+                      No subjects defined for this course yet.
                     </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                        {s.credits} Credits
-                      </span>
+                  </tr>
+                ) : (
+                  subjects.map((s) => (
+                    <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-blue-600 dark:text-blue-400">{s.code}</td>
+                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{s.title}</td>
+                      <td className="py-3.5 px-4 text-center font-bold text-slate-700 dark:text-slate-300">
+                        Sem {s.semester}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                          {s.credits} Credits
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center text-slate-700 dark:text-slate-300 font-medium">
+                        {s.theory_marks}
+                      </td>
+                      <td className="py-3.5 px-4 text-center text-slate-700 dark:text-slate-300 font-medium">
+                        {s.practical_marks}
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-extrabold text-slate-900 dark:text-white">
+                        {s.full_marks}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-medium">
+                        {s.faculty_name}
+                      </td>
+                      {isSuperAdmin && (
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditSubject(s)}
+                              title="Edit Subject"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSubject(s)}
+                              title="Delete Subject"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: Enrolled Trainees Roster */}
+      {activeTab === 'STUDENTS' && (
+        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                  {selectedCourse}
+                </span>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  Enrolled Trainees Roster
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {activeCourseObj ? activeCourseObj.name : selectedCourse} • {enrolledStudents.length} Enrolled Trainees
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-64">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={studentSearch}
+                  onChange={(e) => setStudentSearch(e.target.value)}
+                  placeholder="Search enrolled trainees..."
+                  className="w-full pl-9 pr-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Enrolled Students Table */}
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-extrabold">
+                  <th className="py-3 px-4">Trainee</th>
+                  <th className="py-3 px-4">Roll Number</th>
+                  <th className="py-3 px-4">Registration No</th>
+                  <th className="py-3 px-4 text-center">Semester</th>
+                  <th className="py-3 px-4 text-center">Session</th>
+                  <th className="py-3 px-4 text-center">Category</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4">Contact</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredEnrolledStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Users className="w-8 h-8 text-slate-300 dark:text-slate-700" />
+                        <p className="font-medium text-xs">
+                          {studentSearch
+                            ? 'No enrolled trainees match your search query.'
+                            : `No trainees currently enrolled in ${activeCourseObj?.name || selectedCourse}.`}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          Admit trainees from Student Management to see them enrolled here.
+                        </p>
+                      </div>
                     </td>
-                    <td className="py-3.5 px-4 text-center text-slate-700 dark:text-slate-300 font-medium">
-                      {s.theory_marks}
-                    </td>
-                    <td className="py-3.5 px-4 text-center text-slate-700 dark:text-slate-300 font-medium">
-                      {s.practical_marks}
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-extrabold text-slate-900 dark:text-white">
-                      {s.full_marks}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-medium">
-                      {s.faculty_name}
-                    </td>
-                    {isSuperAdmin && (
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditSubject(s)}
-                            title="Edit Subject"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteSubject(s)}
-                            title="Delete Subject"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                  </tr>
+                ) : (
+                  filteredEnrolledStudents.map((st) => (
+                    <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={st.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${st.roll_number}`}
+                            alt={st.full_name}
+                            className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 object-cover bg-slate-100"
+                          />
+                          <div>
+                            <div className="font-bold text-slate-900 dark:text-white text-xs">{st.full_name}</div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                              <Mail className="w-3 h-3 text-slate-400" />
+                              {st.email}
+                            </div>
+                          </div>
                         </div>
                       </td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                      <td className="py-3.5 px-4 font-mono font-bold text-blue-600 dark:text-blue-400">
+                        {st.roll_number}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-300">
+                        {st.registration_number || (
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 font-sans">
+                            Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-bold text-slate-800 dark:text-slate-200">
+                        Sem {st.semester || 1} {st.section ? `(${st.section})` : ''}
+                      </td>
+                      <td className="py-3.5 px-4 text-center text-slate-600 dark:text-slate-300 font-mono text-[11px]">
+                        {st.academic_session || '2024-2026'}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          {st.category || 'GEN'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          {st.status || 'Active'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400 text-xs">
+                        <div className="flex items-center gap-1 font-mono text-[11px]">
+                          <Phone className="w-3 h-3 text-slate-400" />
+                          {st.phone}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal: Add Academic Program */}
       <Modal

@@ -20,8 +20,13 @@ import {
   CheckCircle2,
   FileSpreadsheet,
   Sliders,
+  Plus,
+  Eye,
+  Printer,
+  Users,
+  GraduationCap,
 } from 'lucide-react';
-import { Marksheet, MarksheetStatus, Examination } from '../../types';
+import { Marksheet, MarksheetStatus, Examination, Course, Student, Subject } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
@@ -35,6 +40,12 @@ export const ExaminationsView: React.FC = () => {
   const isStudent = activeRole === 'STUDENT';
   const isSuperAdmin = activeRole === 'SUPER_ADMIN';
 
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<string>('BED');
+  const [selectedSemester, setSelectedSemester] = useState<number>(1);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [courseSubjects, setCourseSubjects] = useState<Subject[]>([]);
+
   const [examinations, setExaminations] = useState<Examination[]>([]);
   const [selectedExamId, setSelectedExamId] = useState<string>('exam-1');
   const [marksheets, setMarksheets] = useState<Marksheet[]>([]);
@@ -46,6 +57,12 @@ export const ExaminationsView: React.FC = () => {
   const [editingMarksheet, setEditingMarksheet] = useState<Marksheet | null>(null);
   const [editScores, setEditScores] = useState<any[]>([]);
   const [editRemarks, setEditRemarks] = useState<string>('');
+
+  // Generate / Enter Marks Modal
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [generatingStudent, setGeneratingStudent] = useState<Student | null>(null);
+  const [generateScores, setGenerateScores] = useState<any[]>([]);
+  const [generateRemarks, setGenerateRemarks] = useState<string>('');
 
   // Marksheet Template Configuration (Module C.5)
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -73,17 +90,29 @@ export const ExaminationsView: React.FC = () => {
     remarks: '',
   });
 
-  const { playClick, playSuccess, playApprove, playAlert, playPop } = useSound();
+  const { playClick, playSuccess, playApprove, playAlert, playPop, playTab } = useSound();
 
   const loadData = async () => {
     try {
-      const exams = await api.getExaminations();
+      const [exams, allMs, cList, stRes] = await Promise.all([
+        api.getExaminations(),
+        api.getAllMarksheets(),
+        api.getCourses(),
+        api.getStudents(),
+      ]);
       setExaminations(exams);
       if (exams.length > 0 && !selectedExamId) {
         setSelectedExamId(exams[0].id);
       }
-      const ms = await api.getExamMarksheets(selectedExamId || 'exam-1');
-      setMarksheets(ms);
+      setMarksheets(allMs);
+      setCourses(cList);
+      if (cList.length > 0 && !cList.some((c) => c.code === selectedCourse)) {
+        setSelectedCourse(cList[0].code);
+      }
+      setStudents(stRes.items || []);
+
+      const subs = await api.getSubjects(selectedCourse);
+      setCourseSubjects(subs);
     } catch (e) {
       console.error(e);
     }
@@ -91,7 +120,7 @@ export const ExaminationsView: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [selectedExamId]);
+  }, [selectedCourse, selectedSemester]);
 
   const handleActionClick = (
     ms: Marksheet,
@@ -235,6 +264,166 @@ export const ExaminationsView: React.FC = () => {
       }
     } catch (err: any) {
       alert(err.message || 'Failed to update scores');
+    }
+  };
+
+  const handleOpenGenerate = (st: Student) => {
+    playPop();
+    setGeneratingStudent(st);
+
+    const semSubjects = courseSubjects.filter((s) => Number(s.semester) === Number(selectedSemester));
+
+    let defaultScores: any[] = [];
+    if (semSubjects.length > 0) {
+      defaultScores = semSubjects.map((s) => ({
+        subject_code: s.code,
+        subject_title: s.title,
+        credits: s.credits || 4,
+        internal_marks: 52,
+        external_marks: 24,
+        total_obtained: 76,
+        total_maximum: s.full_marks || 100,
+        letter_grade: 'A',
+        grade_point: 8,
+      }));
+    } else {
+      defaultScores = [
+        {
+          subject_code: `${selectedCourse}-${selectedSemester}01`,
+          subject_title: 'Core Discipline & Advanced Principles I',
+          credits: 4,
+          internal_marks: 55,
+          external_marks: 25,
+          total_obtained: 80,
+          total_maximum: 100,
+          letter_grade: 'A+',
+          grade_point: 9,
+        },
+        {
+          subject_code: `${selectedCourse}-${selectedSemester}02`,
+          subject_title: 'Theoretical Foundations & Methods II',
+          credits: 4,
+          internal_marks: 54,
+          external_marks: 24,
+          total_obtained: 78,
+          total_maximum: 100,
+          letter_grade: 'A',
+          grade_point: 8,
+        },
+        {
+          subject_code: `${selectedCourse}-${selectedSemester}03`,
+          subject_title: 'Assessment, Analysis & Evaluation Systems',
+          credits: 4,
+          internal_marks: 56,
+          external_marks: 26,
+          total_obtained: 82,
+          total_maximum: 100,
+          letter_grade: 'A+',
+          grade_point: 9,
+        },
+        {
+          subject_code: `${selectedCourse}-${selectedSemester}04`,
+          subject_title: 'Technology Integration & Applied Systems',
+          credits: 4,
+          internal_marks: 58,
+          external_marks: 27,
+          total_obtained: 85,
+          total_maximum: 100,
+          letter_grade: 'A+',
+          grade_point: 9,
+        },
+        {
+          subject_code: `${selectedCourse}-${selectedSemester}05`,
+          subject_title: 'Practicum Lab, Project File & Viva Voce',
+          credits: 4,
+          internal_marks: 62,
+          external_marks: 26,
+          total_obtained: 88,
+          total_maximum: 100,
+          letter_grade: 'O',
+          grade_point: 10,
+        },
+      ];
+    }
+    setGenerateScores(defaultScores);
+    setGenerateRemarks('All semester curriculum modules completed with required institutional attendance.');
+    setIsGenerateModalOpen(true);
+  };
+
+  const handleGenerateScoreChange = (idx: number, field: 'internal_marks' | 'external_marks', val: number) => {
+    const updated = [...generateScores];
+    updated[idx][field] = val;
+    const internal = Number(updated[idx].internal_marks) || 0;
+    const external = Number(updated[idx].external_marks) || 0;
+    const total = internal + external;
+    updated[idx].total_obtained = total;
+
+    const max = Number(updated[idx].total_maximum) || 100;
+    const pct = (total / max) * 100;
+    let grade = 'F';
+    let gp = 0;
+    if (pct >= 90) { grade = 'O'; gp = 10; }
+    else if (pct >= 80) { grade = 'A+'; gp = 9; }
+    else if (pct >= 70) { grade = 'A'; gp = 8; }
+    else if (pct >= 60) { grade = 'B+'; gp = 7; }
+    else if (pct >= 50) { grade = 'B'; gp = 6; }
+    else if (pct >= 40) { grade = 'C'; gp = 5; }
+
+    updated[idx].letter_grade = grade;
+    updated[idx].grade_point = gp;
+    setGenerateScores(updated);
+  };
+
+  const handleSaveGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!generatingStudent) return;
+
+    let totalObt = 0;
+    let totalMax = 0;
+    generateScores.forEach((s) => {
+      totalObt += (Number(s.internal_marks) || 0) + (Number(s.external_marks) || 0);
+      totalMax += Number(s.total_maximum) || 100;
+    });
+    const pct = totalMax > 0 ? Number(((totalObt / totalMax) * 100).toFixed(1)) : 0;
+    const sgpa = Number((pct / 10).toFixed(2));
+    const activeCourseObj = courses.find((c) => c.code === selectedCourse);
+
+    const newMarksheetData: Partial<Marksheet> = {
+      exam_id: selectedExamId || 'exam-dynamic',
+      exam_title: `${activeCourseObj?.name || selectedCourse} Semester ${selectedSemester} Examination 2025-2026`,
+      student_id: generatingStudent.id,
+      roll_number: generatingStudent.roll_number,
+      registration_number: generatingStudent.registration_number,
+      student_name: generatingStudent.full_name,
+      course_code: selectedCourse,
+      course_name: activeCourseObj?.name || generatingStudent.course_name || selectedCourse,
+      semester: selectedSemester,
+      academic_session: generatingStudent.academic_session || '2024-2026',
+      subject_scores: generateScores,
+      total_marks_obtained: totalObt,
+      total_marks_maximum: totalMax,
+      grand_max_marks: totalMax,
+      percentage: pct,
+      overall_percentage: pct,
+      sgpa,
+      cgpa: sgpa,
+      letter_grade: pct >= 80 ? 'A+' : pct >= 70 ? 'A' : pct >= 60 ? 'B+' : pct >= 40 ? 'B' : 'F',
+      result_status: pct >= 40 ? 'PASS' : 'FAIL',
+      status: 'PUBLISHED',
+      qr_code_hash: `AMCE-${generatingStudent.roll_number}-S${selectedSemester}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+      remarks: generateRemarks,
+    };
+
+    try {
+      const saved = await api.saveMarksheet(newMarksheetData);
+      playSuccess();
+      setIsGenerateModalOpen(false);
+      setGeneratingStudent(null);
+      const allMs = await api.getAllMarksheets();
+      setMarksheets(allMs);
+      setSelectedMarksheet(saved);
+    } catch (err: any) {
+      alert(err.message || 'Failed to generate marksheet');
     }
   };
 
@@ -433,15 +622,29 @@ export const ExaminationsView: React.FC = () => {
     );
   }
 
-  // Super Admin & Faculty Administrative View
-  const filteredMarksheets = marksheets.filter((m) => {
-    const matchesSearch =
-      m.student_name.toLowerCase().includes(search.toLowerCase()) ||
-      m.roll_number.toLowerCase().includes(search.toLowerCase());
+  const activeCourseObj = courses.find((c) => c.code === selectedCourse);
+  const totalSemesters = activeCourseObj?.total_semesters || 4;
 
-    if (!matchesSearch) return false;
-    if (activeTab === 'ALL') return true;
-    return m.status === activeTab;
+  const enrolledCourseStudents = students.filter((s) => {
+    const codeMatch = s.course_code?.trim().toUpperCase() === selectedCourse?.trim().toUpperCase();
+    const nameMatch = activeCourseObj?.name && s.course_name?.toLowerCase().includes(activeCourseObj.name.toLowerCase());
+    return Boolean(codeMatch || nameMatch);
+  });
+
+  const filteredStudents = enrolledCourseStudents.filter((s) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (
+      s.full_name?.toLowerCase().includes(q) ||
+      s.roll_number?.toLowerCase().includes(q) ||
+      s.email?.toLowerCase().includes(q)
+    );
+  });
+
+  // Current semester marksheets for the selected course
+  const currentSemesterMarksheets = marksheets.filter((m) => {
+    const courseMatch = m.course_code === selectedCourse || (activeCourseObj && m.course_name?.toLowerCase().includes(activeCourseObj.name.toLowerCase()));
+    return courseMatch && Number(m.semester) === Number(selectedSemester);
   });
 
   return (
@@ -451,20 +654,22 @@ export const ExaminationsView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-              Examination Pipeline
+              Examination & Results Engine
             </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">BSAEU 4-Tier Verification Desk</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              {activeCourseObj?.affiliation || 'Affiliated & Approved Degree Evaluation'}
+            </span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-1 flex items-center gap-2">
             <FileCheck2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            Examinations & Marksheet Approval Pipeline
+            Examinations & Marksheet Pipeline
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Multi-stage marks verification, SGPA evaluation, score edits, and digital certificate publication
+            Semester-wise marks verification, SGPA evaluation, score generation, and digital certificate publication
           </p>
         </div>
 
-        {/* Actions Desk: Excel Download, Template Config, Exam Select */}
+        {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
           {isSuperAdmin && (
             <SoundButton
@@ -487,18 +692,110 @@ export const ExaminationsView: React.FC = () => {
           >
             Export All Marks (Excel)
           </SoundButton>
+        </div>
+      </div>
 
-          <select
-            value={selectedExamId}
-            onChange={(e) => setSelectedExamId(e.target.value)}
-            className="px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-bold shadow-xs focus:ring-2 focus:ring-blue-500"
-          >
-            {examinations.map((ex) => (
-              <option key={ex.id} value={ex.id}>
-                {ex.title}
-              </option>
-            ))}
-          </select>
+      {/* Program & Semester Selector Bar */}
+      <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex flex-wrap items-center gap-3">
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
+                Degree Program
+              </label>
+              <select
+                value={selectedCourse}
+                onChange={(e) => {
+                  playTab();
+                  setSelectedCourse(e.target.value);
+                  setSelectedSemester(1);
+                }}
+                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 shadow-xs"
+              >
+                {courses.map((c) => (
+                  <option key={c.id || c.code} value={c.code}>
+                    {c.name} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
+                Semester Selection
+              </label>
+              <div className="flex items-center gap-1.5 overflow-x-auto">
+                {Array.from({ length: totalSemesters }, (_, i) => i + 1).map((sem) => (
+                  <button
+                    key={sem}
+                    type="button"
+                    onClick={() => {
+                      playClick();
+                      setSelectedSemester(sem);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                      selectedSemester === sem
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                    }`}
+                  >
+                    Sem {sem}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <SoundButton
+                onClick={() => {
+                  const firstPending = enrolledCourseStudents.find(
+                    (s) => !marksheets.some((m) => (m.student_id === s.id || m.roll_number === s.roll_number) && Number(m.semester) === Number(selectedSemester))
+                  ) || enrolledCourseStudents[0];
+                  if (firstPending) {
+                    handleOpenGenerate(firstPending);
+                  } else {
+                    alert('All enrolled trainees for this course & semester already have marksheets.');
+                  }
+                }}
+                variant="primary"
+                size="sm"
+                soundType="pop"
+                icon={<Plus className="w-4 h-4" />}
+              >
+                Generate Semester Marksheet
+              </SoundButton>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Statistics Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Enrolled Trainees</span>
+            <span className="text-lg font-black text-slate-900 dark:text-white mt-0.5 block">
+              {enrolledCourseStudents.length} Trainees
+            </span>
+          </div>
+          <div className="p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900">
+            <span className="text-[10px] text-blue-600 dark:text-blue-400 uppercase font-bold block">Marksheets Issued</span>
+            <span className="text-lg font-black text-blue-700 dark:text-blue-300 mt-0.5 block">
+              {currentSemesterMarksheets.length} Issued
+            </span>
+          </div>
+          <div className="p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900">
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase font-bold block">Published Live</span>
+            <span className="text-lg font-black text-emerald-700 dark:text-emerald-300 mt-0.5 block">
+              {currentSemesterMarksheets.filter((m) => m.status === 'PUBLISHED').length} Published
+            </span>
+          </div>
+          <div className="p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900">
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 uppercase font-bold block">Pending Evaluation</span>
+            <span className="text-lg font-black text-amber-700 dark:text-amber-300 mt-0.5 block">
+              {Math.max(0, enrolledCourseStudents.length - currentSemesterMarksheets.length)} Pending
+            </span>
+          </div>
         </div>
       </div>
 
@@ -506,7 +803,7 @@ export const ExaminationsView: React.FC = () => {
       <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
         <div className="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
           <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-          Marksheet Lifecycle State Machine
+          Marksheet Lifecycle State Machine ({selectedCourse} - Sem {selectedSemester})
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -516,35 +813,35 @@ export const ExaminationsView: React.FC = () => {
               num: '1',
               title: 'Draft Entry',
               desc: 'Faculty marks input',
-              count: marksheets.filter((m) => m.status === 'DRAFT').length,
+              count: currentSemesterMarksheets.filter((m) => m.status === 'DRAFT').length,
             },
             {
               id: 'SUBMITTED_BY_FACULTY',
               num: '2',
               title: 'Submitted',
               desc: 'Dept. review pending',
-              count: marksheets.filter((m) => m.status === 'SUBMITTED_BY_FACULTY').length,
+              count: currentSemesterMarksheets.filter((m) => m.status === 'SUBMITTED_BY_FACULTY').length,
             },
             {
               id: 'DEPARTMENT_VERIFIED',
               num: '3',
               title: 'Dept. Verified',
               desc: 'Coordinator verified',
-              count: marksheets.filter((m) => m.status === 'DEPARTMENT_VERIFIED').length,
+              count: currentSemesterMarksheets.filter((m) => m.status === 'DEPARTMENT_VERIFIED').length,
             },
             {
               id: 'ADMIN_APPROVED',
               num: '4',
               title: 'Admin Approved',
               desc: 'Principal clearance',
-              count: marksheets.filter((m) => m.status === 'ADMIN_APPROVED').length,
+              count: currentSemesterMarksheets.filter((m) => m.status === 'ADMIN_APPROVED').length,
             },
             {
               id: 'PUBLISHED',
               num: '5',
               title: 'Published',
               desc: 'Live on student portal',
-              count: marksheets.filter((m) => m.status === 'PUBLISHED').length,
+              count: currentSemesterMarksheets.filter((m) => m.status === 'PUBLISHED').length,
             },
           ].map((stage) => (
             <div
@@ -576,7 +873,7 @@ export const ExaminationsView: React.FC = () => {
       <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
           {[
-            { id: 'ALL', label: `All (${marksheets.length})` },
+            { id: 'ALL', label: `All Trainees (${filteredStudents.length})` },
             { id: 'DRAFT', label: 'Drafts' },
             { id: 'SUBMITTED_BY_FACULTY', label: 'Submitted' },
             { id: 'DEPARTMENT_VERIFIED', label: 'Dept. Verified' },
@@ -630,143 +927,306 @@ export const ExaminationsView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredMarksheets.length === 0 ? (
+              {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
-                    No marksheets match current filter.
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <GraduationCap className="w-8 h-8 text-slate-300 dark:text-slate-700" />
+                      <p className="font-semibold text-xs">
+                        No enrolled trainees found in {activeCourseObj?.name || selectedCourse}.
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        Enroll students under this degree program to generate and evaluate semester marksheets.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                filteredMarksheets.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="font-extrabold text-slate-900 dark:text-white">{m.student_name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">{m.course_name}</div>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-blue-600 dark:text-blue-400">{m.roll_number}</td>
-                    <td className="py-3.5 px-4 text-center font-bold text-slate-700 dark:text-slate-300">Sem {m.semester}</td>
-                    <td className="py-3.5 px-4 text-center font-bold text-slate-900 dark:text-white">
-                      {m.total_marks_obtained} / {m.total_marks_maximum}
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-bold text-blue-600 dark:text-blue-400">{m.percentage}%</td>
-                    <td className="py-3.5 px-4 text-center font-black text-emerald-600 dark:text-emerald-400">{m.sgpa}</td>
-                    <td className="py-3.5 px-4 text-center">
-                      <Badge status={m.status} size="sm" />
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            playPop();
-                            setSelectedMarksheet(m);
-                          }}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors"
-                        >
-                          Details
-                        </button>
+                filteredStudents.map((st) => {
+                  const studentMs = marksheets.find(
+                    (m) =>
+                      (m.student_id === st.id || m.roll_number === st.roll_number) &&
+                      Number(m.semester) === Number(selectedSemester)
+                  );
 
-                        {/* Edit Scores Button for Super Admin */}
-                        {isSuperAdmin && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditScores(m)}
-                            title="Edit Subject Marks & SGPA"
-                            className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                  if (activeTab !== 'ALL' && (!studentMs || studentMs.status !== activeTab)) {
+                    return null;
+                  }
 
-                        {/* Pipeline Stage Transitions */}
-                        {m.status === 'DRAFT' && (
-                          <SoundButton
-                            onClick={() => handleActionClick(m, 'SUBMIT')}
-                            size="sm"
-                            variant="primary"
-                            soundType="click"
-                            icon={<Send className="w-3 h-3" />}
-                          >
-                            Submit
-                          </SoundButton>
-                        )}
+                  return (
+                    <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={st.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${st.roll_number}`}
+                            alt={st.full_name}
+                            className="w-7 h-7 rounded-full border border-slate-200 dark:border-slate-700 object-cover bg-slate-100"
+                          />
+                          <div>
+                            <div className="font-extrabold text-slate-900 dark:text-white">{st.full_name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              {st.course_code || selectedCourse} • {st.academic_session || '2024-2026'}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-blue-600 dark:text-blue-400">{st.roll_number}</td>
+                      <td className="py-3.5 px-4 text-center font-bold text-slate-700 dark:text-slate-300">
+                        Sem {selectedSemester}
+                      </td>
 
-                        {m.status === 'SUBMITTED_BY_FACULTY' && (
-                          <>
+                      {studentMs ? (
+                        <>
+                          <td className="py-3.5 px-4 text-center font-bold text-slate-900 dark:text-white">
+                            {studentMs.total_marks_obtained} / {studentMs.total_marks_maximum}
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-bold text-blue-600 dark:text-blue-400">
+                            {studentMs.percentage}%
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-black text-emerald-600 dark:text-emerald-400">
+                            {studentMs.sgpa}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <Badge status={studentMs.status} size="sm" />
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  playPop();
+                                  setSelectedMarksheet(studentMs);
+                                }}
+                                title="View Statement of Marks"
+                                className="px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 text-xs font-bold transition-colors flex items-center gap-1"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                Statement
+                              </button>
+
+                              {isSuperAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditScores(studentMs)}
+                                  title="Edit Subject Marks & SGPA"
+                                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              {studentMs.status === 'DRAFT' && (
+                                <SoundButton
+                                  onClick={() => handleActionClick(studentMs, 'SUBMIT')}
+                                  size="sm"
+                                  variant="primary"
+                                  soundType="click"
+                                  icon={<Send className="w-3 h-3" />}
+                                >
+                                  Submit
+                                </SoundButton>
+                              )}
+
+                              {studentMs.status === 'SUBMITTED_BY_FACULTY' && (
+                                <>
+                                  <SoundButton
+                                    onClick={() => handleActionClick(studentMs, 'VERIFY')}
+                                    size="sm"
+                                    variant="secondary"
+                                    soundType="click"
+                                    icon={<CheckCircle className="w-3 h-3 text-purple-600 dark:text-purple-400" />}
+                                  >
+                                    Verify
+                                  </SoundButton>
+                                  <SoundButton
+                                    onClick={() => handleActionClick(studentMs, 'REJECT')}
+                                    size="sm"
+                                    variant="danger"
+                                    soundType="alert"
+                                  >
+                                    Reject
+                                  </SoundButton>
+                                </>
+                              )}
+
+                              {studentMs.status === 'DEPARTMENT_VERIFIED' && (
+                                <>
+                                  <SoundButton
+                                    onClick={() => handleActionClick(studentMs, 'APPROVE')}
+                                    size="sm"
+                                    variant="primary"
+                                    soundType="success"
+                                    icon={<CheckCircle className="w-3 h-3 text-white" />}
+                                  >
+                                    Approve
+                                  </SoundButton>
+                                  <SoundButton
+                                    onClick={() => handleActionClick(studentMs, 'REJECT')}
+                                    size="sm"
+                                    variant="danger"
+                                    soundType="alert"
+                                  >
+                                    Reject
+                                  </SoundButton>
+                                </>
+                              )}
+
+                              {studentMs.status === 'ADMIN_APPROVED' && (
+                                <SoundButton
+                                  onClick={() => handleActionClick(studentMs, 'PUBLISH')}
+                                  size="sm"
+                                  variant="success"
+                                  soundType="approve"
+                                  icon={<Sparkles className="w-3 h-3" />}
+                                >
+                                  Publish
+                                </SoundButton>
+                              )}
+
+                              {studentMs.status === 'PUBLISHED' && (
+                                <SoundButton
+                                  onClick={() => handleDownloadPdf(studentMs)}
+                                  size="sm"
+                                  variant="outline"
+                                  soundType="pop"
+                                  icon={<Download className="w-3 h-3" />}
+                                >
+                                  PDF
+                                </SoundButton>
+                              )}
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-3.5 px-4 text-center text-slate-400 italic">Pending Entry</td>
+                          <td className="py-3.5 px-4 text-center text-slate-400">--</td>
+                          <td className="py-3.5 px-4 text-center text-slate-400">--</td>
+                          <td className="py-3.5 px-4 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                              Not Entered
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
                             <SoundButton
-                              onClick={() => handleActionClick(m, 'VERIFY')}
-                              size="sm"
-                              variant="secondary"
-                              soundType="click"
-                              icon={<CheckCircle className="w-3 h-3 text-purple-600 dark:text-purple-400" />}
-                            >
-                              Verify
-                            </SoundButton>
-                            <SoundButton
-                              onClick={() => handleActionClick(m, 'REJECT')}
-                              size="sm"
-                              variant="danger"
-                              soundType="alert"
-                            >
-                              Reject
-                            </SoundButton>
-                          </>
-                        )}
-
-                        {m.status === 'DEPARTMENT_VERIFIED' && (
-                          <>
-                            <SoundButton
-                              onClick={() => handleActionClick(m, 'APPROVE')}
+                              onClick={() => handleOpenGenerate(st)}
                               size="sm"
                               variant="primary"
-                              soundType="success"
-                              icon={<CheckCircle className="w-3 h-3 text-white" />}
+                              soundType="pop"
+                              icon={<Plus className="w-3.5 h-3.5" />}
                             >
-                              Approve
+                              Enter Semester Marks
                             </SoundButton>
-                            <SoundButton
-                              onClick={() => handleActionClick(m, 'REJECT')}
-                              size="sm"
-                              variant="danger"
-                              soundType="alert"
-                            >
-                              Reject
-                            </SoundButton>
-                          </>
-                        )}
-
-                        {m.status === 'ADMIN_APPROVED' && (
-                          <SoundButton
-                            onClick={() => handleActionClick(m, 'PUBLISH')}
-                            size="sm"
-                            variant="success"
-                            soundType="approve"
-                            icon={<Sparkles className="w-3 h-3" />}
-                          >
-                            Publish
-                          </SoundButton>
-                        )}
-
-                        {m.status === 'PUBLISHED' && (
-                          <SoundButton
-                            onClick={() => handleDownloadPdf(m)}
-                            size="sm"
-                            variant="outline"
-                            soundType="pop"
-                            icon={<Download className="w-3 h-3" />}
-                          >
-                            PDF
-                          </SoundButton>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Modal: Generate / Enter Semester Marks */}
+      {isGenerateModalOpen && generatingStudent && (
+        <Modal
+          isOpen={isGenerateModalOpen}
+          onClose={() => setIsGenerateModalOpen(false)}
+          title={`Generate Semester ${selectedSemester} Marksheet`}
+          subtitle={`${generatingStudent.full_name} (${generatingStudent.roll_number}) • ${activeCourseObj?.name || selectedCourse}`}
+          maxWidth="3xl"
+        >
+          <form onSubmit={handleSaveGenerate} className="space-y-5">
+            <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-xs flex items-center justify-between">
+              <div>
+                <span className="text-blue-700 dark:text-blue-300 font-extrabold block">
+                  Curriculum Evaluation for Semester {selectedSemester}
+                </span>
+                <span className="text-[11px] text-slate-600 dark:text-slate-400">
+                  Enter theory & practicum marks for curriculum modules. SGPA and grade will calculate automatically.
+                </span>
+              </div>
+              <span className="px-3 py-1 rounded-xl bg-blue-600 text-white font-mono font-bold text-xs">
+                {selectedCourse} - SEM {selectedSemester}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold border-b border-slate-200 dark:border-slate-700">
+                    <th className="py-2.5 px-3">Curriculum Module</th>
+                    <th className="py-2.5 px-3 text-center">Theory (Max 70)</th>
+                    <th className="py-2.5 px-3 text-center">Practicum (Max 30)</th>
+                    <th className="py-2.5 px-3 text-center">Total (Max 100)</th>
+                    <th className="py-2.5 px-3 text-center">Letter Grade</th>
+                    <th className="py-2.5 px-3 text-center">Grade Point</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {generateScores.map((sc, idx) => (
+                    <tr key={idx}>
+                      <td className="py-2.5 px-3">
+                        <div className="font-mono font-bold text-blue-600 dark:text-blue-400">{sc.subject_code}</div>
+                        <div className="text-[11px] text-slate-500 font-medium">{sc.subject_title}</div>
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <input
+                          type="number"
+                          min={0}
+                          max={70}
+                          value={sc.internal_marks}
+                          onChange={(e) => handleGenerateScoreChange(idx, 'internal_marks', Number(e.target.value))}
+                          className="w-18 px-2 py-1 text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold"
+                        />
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <input
+                          type="number"
+                          min={0}
+                          max={30}
+                          value={sc.external_marks}
+                          onChange={(e) => handleGenerateScoreChange(idx, 'external_marks', Number(e.target.value))}
+                          className="w-18 px-2 py-1 text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold"
+                        />
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-black text-blue-600 dark:text-blue-400">
+                        {sc.total_obtained}
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-bold text-emerald-600">{sc.letter_grade}</td>
+                      <td className="py-2.5 px-3 text-center font-bold">{sc.grade_point}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Institutional Remarks & Attendance Clearance
+              </label>
+              <input
+                type="text"
+                value={generateRemarks}
+                onChange={(e) => setGenerateRemarks(e.target.value)}
+                placeholder="e.g. All semester curricular coursework and internship completed."
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <SoundButton type="button" onClick={() => setIsGenerateModalOpen(false)} variant="secondary" size="sm">
+                Cancel
+              </SoundButton>
+              <SoundButton type="submit" variant="primary" size="sm" soundType="success">
+                Save & Issue Marksheet
+              </SoundButton>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Modal: Edit Marksheet Scores (Super Admin) */}
       {editingMarksheet && (
@@ -851,60 +1311,197 @@ export const ExaminationsView: React.FC = () => {
         </Modal>
       )}
 
-      {/* Modal: Details Modal */}
+      {/* Modal: Details Modal (Authentic Institutional Marksheet Format) */}
       {selectedMarksheet && (
         <Modal
           isOpen={!!selectedMarksheet}
           onClose={() => setSelectedMarksheet(null)}
-          title="Statement of Marks & Audit Trail"
-          subtitle={`${selectedMarksheet.student_name} (${selectedMarksheet.roll_number})`}
-          maxWidth="2xl"
+          title="Official Statement of Marks"
+          subtitle={`${selectedMarksheet.student_name} (${selectedMarksheet.roll_number}) • ${selectedMarksheet.course_name}`}
+          maxWidth="4xl"
         >
-          <div className="space-y-4">
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-900 dark:text-white">{selectedMarksheet.exam_title}</div>
-                <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold mt-0.5">
-                  {selectedMarksheet.course_name} • Sem {selectedMarksheet.semester}
+          <div className="space-y-6 print:p-0">
+            {/* The Printable Official Certificate */}
+            <div
+              id="printable-marksheet"
+              className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-md space-y-6 relative overflow-hidden"
+            >
+              {/* Header */}
+              <div className="text-center border-b border-slate-200 dark:border-slate-800 pb-5 space-y-2">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="w-14 h-14 rounded-full border border-blue-600/40 shadow-sm bg-white p-0.5 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={collegeLogo}
+                      alt="College Seal"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/logo.png';
+                      }}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                </div>
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                  Annapurna Memorial College of Education
+                </h2>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Kashinagar, South 24 Parganas, West Bengal 743349
+                </p>
+                <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                  {selectedMarksheet.course_name} • Academic Degree Evaluation
+                </div>
+                <div className="inline-block mt-2 px-4 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  STATEMENT OF MARKS FOR {selectedMarksheet.exam_title.toUpperCase()}
                 </div>
               </div>
-              <Badge status={selectedMarksheet.status} />
-            </div>
 
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
-                    <th className="py-2 px-3">Subject</th>
-                    <th className="py-2 px-3 text-center">Marks</th>
-                    <th className="py-2 px-3 text-center">Grade</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {selectedMarksheet.subject_scores.map((sc) => (
-                    <tr key={sc.subject_code}>
-                      <td className="py-2 px-3">{sc.subject_title} ({sc.subject_code})</td>
-                      <td className="py-2 px-3 text-center font-bold">{sc.total_obtained} / {sc.total_maximum}</td>
-                      <td className="py-2 px-3 text-center font-bold text-emerald-600">{sc.letter_grade}</td>
+              {/* Trainee Particulars */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-xs">
+                <div>
+                  <span className="text-slate-400 font-medium block">Trainee Name:</span>
+                  <span className="font-extrabold text-slate-900 dark:text-white text-sm">{selectedMarksheet.student_name}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-medium block">Roll Number:</span>
+                  <span className="font-mono font-bold text-blue-600 dark:text-blue-400 text-sm">{selectedMarksheet.roll_number}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-medium block">Program & Semester:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    {selectedMarksheet.course_name} - Sem {selectedMarksheet.semester}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-medium block">Session & Status:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {selectedMarksheet.academic_session} • {selectedMarksheet.result_status || 'PASS'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Subject Marks Table */}
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-extrabold uppercase">
+                      <th className="py-3 px-4">Subject Code & Title</th>
+                      <th className="py-3 px-4 text-center">Credits</th>
+                      <th className="py-3 px-4 text-center">Internal / Theory</th>
+                      <th className="py-3 px-4 text-center">Practicum</th>
+                      <th className="py-3 px-4 text-center">Marks Obtained</th>
+                      <th className="py-3 px-4 text-center">Max Marks</th>
+                      <th className="py-3 px-4 text-center">Letter Grade</th>
+                      <th className="py-3 px-4 text-center">Grade Point</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {selectedMarksheet.subject_scores.map((sc) => (
+                      <tr key={sc.subject_code} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <td className="py-3 px-4">
+                          <span className="font-mono font-bold text-blue-600 dark:text-blue-400 mr-2">{sc.subject_code}</span>
+                          <span className="font-semibold text-slate-900 dark:text-white">{sc.subject_title}</span>
+                        </td>
+                        <td className="py-3 px-4 text-center font-bold">{sc.credits || 4}</td>
+                        <td className="py-3 px-4 text-center">{sc.internal_marks}</td>
+                        <td className="py-3 px-4 text-center">{sc.external_marks}</td>
+                        <td className="py-3 px-4 text-center font-extrabold text-blue-600 dark:text-blue-400">
+                          {sc.total_obtained}
+                        </td>
+                        <td className="py-3 px-4 text-center text-slate-500">{sc.total_maximum || 100}</td>
+                        <td className="py-3 px-4 text-center">
+                          <span className="px-2 py-0.5 rounded-md font-bold text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                            {sc.letter_grade}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center font-bold">{sc.grade_point}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Performance Summary Footnotes */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 p-5 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs">
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400">Total Marks Obtained:</span>
+                  <div className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
+                    {selectedMarksheet.total_marks_obtained} / {selectedMarksheet.total_marks_maximum}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400">Overall Percentage:</span>
+                  <div className="text-xl font-black text-blue-600 dark:text-blue-400 mt-0.5">
+                    {selectedMarksheet.percentage}%
+                  </div>
+                </div>
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400">Semester SGPA:</span>
+                  <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    {selectedMarksheet.sgpa}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-slate-500 dark:text-slate-400">Final Outcome:</span>
+                  <div className="text-base font-black text-emerald-700 dark:text-emerald-300 mt-0.5">
+                    {selectedMarksheet.result_status || 'PASSED (DISTINCTION)'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Security Verification & Signatures */}
+              <div className="flex flex-col sm:flex-row items-center justify-between pt-5 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <QrCode className="w-9 h-9 text-slate-700 dark:text-slate-300" />
+                  </div>
+                  <div>
+                    <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                      HASH: {selectedMarksheet.qr_code_hash}
+                    </div>
+                    <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Digitally Certified & Sealed
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
+                    Dr. Arnab Senapati, M.Ed., Ph.D.
+                  </div>
+                  <div className="text-[11px] text-slate-400">Principal & Chief Controller of Examinations</div>
+                </div>
+              </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
               <SoundButton type="button" onClick={() => setSelectedMarksheet(null)} variant="secondary" size="sm">
                 Close
               </SoundButton>
-              <SoundButton
-                type="button"
-                onClick={() => handleDownloadPdf(selectedMarksheet)}
-                variant="primary"
-                size="sm"
-                icon={<Download className="w-3.5 h-3.5" />}
-              >
-                Download PDF
-              </SoundButton>
+
+              <div className="flex items-center gap-2">
+                <SoundButton
+                  type="button"
+                  onClick={() => window.print()}
+                  variant="secondary"
+                  size="sm"
+                  soundType="pop"
+                  icon={<Printer className="w-3.5 h-3.5" />}
+                >
+                  Print Marksheet
+                </SoundButton>
+
+                <SoundButton
+                  type="button"
+                  onClick={() => handleDownloadPdf(selectedMarksheet)}
+                  variant="primary"
+                  size="sm"
+                  soundType="success"
+                  icon={<Download className="w-3.5 h-3.5" />}
+                >
+                  Download PDF
+                </SoundButton>
+              </div>
             </div>
           </div>
         </Modal>
