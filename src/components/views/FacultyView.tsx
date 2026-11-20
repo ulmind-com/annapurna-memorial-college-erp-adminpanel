@@ -73,6 +73,7 @@ export const FacultyView: React.FC = () => {
       setFaculty([res, ...faculty]);
       playSuccess();
       setIsAddModalOpen(false);
+      loadFaculty();
       setCreatedCredentials({
         name: res.full_name,
         email: res.email,

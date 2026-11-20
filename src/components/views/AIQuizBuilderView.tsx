@@ -1,16 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Brain, Sparkles, CheckCircle2, Plus, Play, Download, Trash2, HelpCircle } from 'lucide-react';
 import { SoundButton } from '../common/SoundButton';
 import { useSound } from '../../context/SoundContext';
+import { api } from '../../services/api';
+import { Course } from '../../types';
 
 export const AIQuizBuilderView: React.FC = () => {
   const { playPop, playSuccess } = useSound();
 
+  const [courses, setCourses] = useState<Course[]>([]);
   const [topic, setTopic] = useState('Piaget Cognitive Stages & Schema Theory');
   const [course, setCourse] = useState('B.Ed. Course 1.1.1: Childhood and Growing Up');
   const [difficulty, setDifficulty] = useState<'FOUNDATIONAL' | 'INTERMEDIATE' | 'ADVANCED'>('INTERMEDIATE');
   const [questionCount, setQuestionCount] = useState(5);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        const cList = await api.getCourses();
+        setCourses(cList);
+        if (cList.length > 0) {
+          setCourse(`${cList[0].name} (${cList[0].code})`);
+        }
+      } catch (e) {
+        console.error('Error loading courses:', e);
+      }
+    };
+    loadCourses();
+  }, []);
 
   const [questions, setQuestions] = useState([
     {
@@ -107,12 +125,21 @@ export const AIQuizBuilderView: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Target Course</label>
-            <input
-              type="text"
+            <select
               value={course}
               onChange={(e) => setCourse(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+            >
+              {courses.length > 0 ? (
+                courses.map((c) => (
+                  <option key={c.id || c.code} value={`${c.name} (${c.code})`}>
+                    {c.code} - {c.name}
+                  </option>
+                ))
+              ) : (
+                <option value="B.Ed. (Course 1.1.1: Childhood & Growing Up)">B.Ed. (Course 1.1.1)</option>
+              )}
+            </select>
           </div>
 
           <div>

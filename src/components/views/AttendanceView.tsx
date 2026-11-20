@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarCheck, AlertTriangle, CheckCircle, XCircle, Clock, Users, ShieldCheck, Sparkles } from 'lucide-react';
+import { CalendarCheck, AlertTriangle, CheckCircle, XCircle, Clock, Users, ShieldCheck, Sparkles, Filter } from 'lucide-react';
 import { api } from '../../services/api';
-import { Student } from '../../types';
+import { Student, Course, Subject } from '../../types';
 import { SoundButton } from '../common/SoundButton';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
@@ -10,33 +10,65 @@ export const AttendanceView: React.FC = () => {
   const { activeRole } = useAuth();
   const isStudent = activeRole === 'STUDENT';
 
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<string>('BED');
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [selectedSubject, setSelectedSubject] = useState<string>('BED-101');
   const [attendanceMap, setAttendanceMap] = useState<Record<string, 'PRESENT' | 'ABSENT'>>({});
   const [analytics, setAnalytics] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'TAKE' | 'ANALYTICS'>('TAKE');
   const { playClick, playSuccess, playAlert } = useSound();
 
+  // Load available courses
   useEffect(() => {
-    const load = async () => {
+    const loadCourses = async () => {
       try {
-        const res = await api.getStudents({ course_code: 'BED' });
-        setStudents(res.items);
+        const cList = await api.getCourses();
+        setCourses(cList);
+        if (cList.length > 0) {
+          setSelectedCourse(cList[0].code);
+        }
+      } catch (e) {
+        console.error('Error loading courses:', e);
+      }
+    };
+    loadCourses();
+  }, []);
+
+  // Whenever selected course changes, reload subjects and students
+  useEffect(() => {
+    const loadCourseData = async () => {
+      try {
+        const [subList, sRes] = await Promise.all([
+          api.getSubjects(selectedCourse),
+          api.getStudents({ course_code: selectedCourse }),
+        ]);
+        setSubjects(subList);
+        if (subList.length > 0) {
+          setSelectedSubject(subList[0].code);
+        } else {
+          setSelectedSubject(`${selectedCourse}-101`);
+        }
+
+        setStudents(sRes.items);
         const map: Record<string, 'PRESENT' | 'ABSENT'> = {};
-        res.items.forEach((s) => {
+        sRes.items.forEach((s) => {
           map[s.id] = 'PRESENT';
         });
         setAttendanceMap(map);
 
-        const an = await api.getAttendanceAnalytics('BED', 1);
+        const an = await api.getAttendanceAnalytics(selectedCourse, 1);
         setAnalytics(an);
       } catch (e) {
-        console.error(e);
+        console.error('Error loading course data for attendance:', e);
       }
     };
-    load();
-  }, []);
+    if (selectedCourse) {
+      loadCourseData();
+    }
+  }, [selectedCourse]);
 
   const toggleStudentStatus = (id: string) => {
     playClick();
@@ -226,6 +258,23 @@ export const AttendanceView: React.FC = () => {
             <div className="flex flex-wrap items-center gap-3">
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 mb-1">
+                  Program / Course
+                </label>
+                <select
+                  value={selectedCourse}
+                  onChange={(e) => setSelectedCourse(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-semibold"
+                >
+                  {courses.map((c) => (
+                    <option key={c.id || c.code} value={c.code}>
+                      {c.code} - {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 mb-1">
                   Session Date
                 </label>
                 <input
@@ -245,11 +294,15 @@ export const AttendanceView: React.FC = () => {
                   onChange={(e) => setSelectedSubject(e.target.value)}
                   className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-semibold"
                 >
-                  <option value="BED-101">BED-101: Childhood & Growing Up</option>
-                  <option value="BED-102">BED-102: Contemporary India & Education</option>
-                  <option value="BED-103">BED-103: Language Across Curriculum</option>
-                  <option value="BED-104">BED-104: Understanding Disciplines</option>
-                  <option value="BED-105">BED-105: Drama & Art EPC</option>
+                  {subjects.length > 0 ? (
+                    subjects.map((sub) => (
+                      <option key={sub.id || sub.code} value={sub.code}>
+                        {sub.code}: {sub.title}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={`${selectedCourse}-101`}>{selectedCourse}-101: General Pedagogical Studies</option>
+                  )}
                 </select>
               </div>
             </div>

@@ -16,7 +16,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
-import { Student } from '../../types';
+import { Student, Course } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
@@ -26,6 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 
 export const StudentsView: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState('');
   const [courseFilter, setCourseFilter] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -66,6 +67,18 @@ export const StudentsView: React.FC = () => {
   const [editStatus, setEditStatus] = useState<'ACTIVE' | 'SUSPENDED' | 'GRADUATED'>('ACTIVE');
   const [editGuardian, setEditGuardian] = useState('');
 
+  const loadCourses = async () => {
+    try {
+      const cList = await api.getCourses();
+      setCourses(cList);
+      if (cList.length > 0 && !cList.some((c) => c.code === newCourse)) {
+        setNewCourse(cList[0].code);
+      }
+    } catch (err) {
+      console.error('Failed to load courses:', err);
+    }
+  };
+
   const loadStudents = async () => {
     try {
       const res = await api.getStudents({ search, course_code: courseFilter });
@@ -76,19 +89,32 @@ export const StudentsView: React.FC = () => {
   };
 
   useEffect(() => {
+    loadCourses();
+  }, []);
+
+  useEffect(() => {
     loadStudents();
   }, [search, courseFilter]);
+
+  const handleOpenEnrollModal = () => {
+    playPop();
+    loadCourses(); // Fresh load so newly added courses immediately show in suggestions
+    setIsEnrollModalOpen(true);
+  };
 
   const handleEnrollSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const matchedCourse = courses.find((c) => c.code === newCourse);
+      const course_name = matchedCourse ? matchedCourse.name : newCourse;
+
       const res = await api.createStudent({
         roll_number: newRoll.trim(),
         full_name: newName.trim(),
         email: newEmail.trim(),
         phone: newPhone.trim(),
         course_code: newCourse,
-        course_name: newCourse === 'BED' ? 'Bachelor of Education (B.Ed.)' : 'Diploma in Elementary Education (D.El.Ed.)',
+        course_name,
         academic_session: newSession,
         semester: Number(newSemester),
         gender: newGender,
@@ -191,7 +217,7 @@ export const StudentsView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           <SoundButton
-            onClick={() => setIsEnrollModalOpen(true)}
+            onClick={handleOpenEnrollModal}
             variant="primary"
             soundType="pop"
             icon={<Plus className="w-4 h-4" />}
@@ -220,10 +246,12 @@ export const StudentsView: React.FC = () => {
             onChange={(e) => setCourseFilter(e.target.value)}
             className="px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
           >
-            <option value="">All Programs (B.Ed. & D.El.Ed.)</option>
-            <option value="BED">Bachelor of Education (B.Ed.)</option>
-            <option value="DELED">Diploma in Elem. Edu (D.El.Ed.)</option>
-            <option value="BA_ED">B.A. (Honours) in Education</option>
+            <option value="">All Academic Programs ({courses.length})</option>
+            {courses.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name} ({c.code})
+              </option>
+            ))}
           </select>
 
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
@@ -387,12 +415,21 @@ export const StudentsView: React.FC = () => {
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Program</label>
               <select
                 value={newCourse}
-                onChange={(e) => setNewCourse(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => {
+                  setNewCourse(e.target.value);
+                  setNewSemester(1);
+                }}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               >
-                <option value="BED">Bachelor of Education (B.Ed.)</option>
-                <option value="DELED">Diploma in Elem. Edu (D.El.Ed.)</option>
-                <option value="BA_ED">B.A. (Honours) Education</option>
+                {courses.length === 0 ? (
+                  <option value="BED">Bachelor of Education (B.Ed.)</option>
+                ) : (
+                  courses.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name} ({c.code})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -413,10 +450,14 @@ export const StudentsView: React.FC = () => {
                 onChange={(e) => setNewSemester(Number(e.target.value))}
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value={1}>Semester 1</option>
-                <option value={2}>Semester 2</option>
-                <option value={3}>Semester 3</option>
-                <option value={4}>Semester 4</option>
+                {Array.from(
+                  { length: courses.find((c) => c.code === newCourse)?.total_semesters || 4 },
+                  (_, i) => i + 1
+                ).map((sem) => (
+                  <option key={sem} value={sem}>
+                    Semester {sem}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -526,12 +567,21 @@ export const StudentsView: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Program</label>
                 <select
                   value={editCourse}
-                  onChange={(e) => setEditCourse(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => {
+                    setEditCourse(e.target.value);
+                    setEditSemester(1);
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                 >
-                  <option value="BED">B.Ed.</option>
-                  <option value="DELED">D.El.Ed.</option>
-                  <option value="BA_ED">B.A. Education</option>
+                  {courses.length === 0 ? (
+                    <option value="BED">Bachelor of Education (B.Ed.)</option>
+                  ) : (
+                    courses.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.name} ({c.code})
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -542,10 +592,14 @@ export const StudentsView: React.FC = () => {
                   onChange={(e) => setEditSemester(Number(e.target.value))}
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value={1}>Semester 1</option>
-                  <option value={2}>Semester 2</option>
-                  <option value={3}>Semester 3</option>
-                  <option value={4}>Semester 4</option>
+                  {Array.from(
+                    { length: courses.find((c) => c.code === editCourse)?.total_semesters || 4 },
+                    (_, i) => i + 1
+                  ).map((sem) => (
+                    <option key={sem} value={sem}>
+                      Semester {sem}
+                    </option>
+                  ))}
                 </select>
               </div>
 

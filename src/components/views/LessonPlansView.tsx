@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, Plus, CheckCircle2, Clock, BookOpen, Download, Search, Filter } from 'lucide-react';
 import { SoundButton } from '../common/SoundButton';
 import { useSound } from '../../context/SoundContext';
+import { useAuth } from '../../context/AuthContext';
+import { api } from '../../services/api';
+import { Course } from '../../types';
 
 export const LessonPlansView: React.FC = () => {
   const { playPop, playSuccess } = useSound();
+  const { user } = useAuth();
+  const [courses, setCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState('');
   const [plans, setPlans] = useState([
     {
@@ -16,7 +21,7 @@ export const LessonPlansView: React.FC = () => {
       tlm: 'Compound Microscope, Prepared Onion Peel Slides, Interactive Smartboard Chart',
       duration: '45 Minutes',
       status: 'APPROVED',
-      faculty: 'Ms. Ria Sharma',
+      faculty: 'Dr. Debabrata Jana',
       updatedAt: '18 May 2026 IST',
     },
     {
@@ -28,7 +33,7 @@ export const LessonPlansView: React.FC = () => {
       tlm: 'Cardboard square tiles, GeoGebra digital geometry app',
       duration: '45 Minutes',
       status: 'APPROVED',
-      faculty: 'Dr. Debabrata Jana',
+      faculty: 'Prof. Subhasish Mondal',
       updatedAt: '17 May 2026 IST',
     },
     {
@@ -40,7 +45,7 @@ export const LessonPlansView: React.FC = () => {
       tlm: 'Flash cards, Illustrated Bengali storybook, Puppet figures',
       duration: '40 Minutes',
       status: 'SUBMITTED',
-      faculty: 'Ms. Ria Sharma',
+      faculty: 'Dr. Debabrata Jana',
       updatedAt: '19 May 2026 IST',
     },
     {
@@ -63,6 +68,21 @@ export const LessonPlansView: React.FC = () => {
   const [newUnit, setNewUnit] = useState('');
   const [newTlm, setNewTlm] = useState('');
 
+  useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        const cList = await api.getCourses();
+        setCourses(cList);
+        if (cList.length > 0) {
+          setNewCourse(`${cList[0].name} Semester 1`);
+        }
+      } catch (e) {
+        console.error('Error loading courses for lesson plans:', e);
+      }
+    };
+    loadCourses();
+  }, []);
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
@@ -77,7 +97,7 @@ export const LessonPlansView: React.FC = () => {
       tlm: newTlm.trim() || 'Blackboard, Chart paper & Textbooks',
       duration: '45 Minutes',
       status: 'SUBMITTED',
-      faculty: 'Ms. Ria Sharma',
+      faculty: user?.full_name || 'Faculty Member',
       updatedAt: 'Just Now IST',
     };
 
@@ -223,13 +243,25 @@ export const LessonPlansView: React.FC = () => {
                 <select
                   value={newCourse}
                   onChange={(e) => setNewCourse(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                 >
-                  <option value="B.Ed. Semester 1">B.Ed. Semester 1</option>
-                  <option value="B.Ed. Semester 2">B.Ed. Semester 2</option>
-                  <option value="B.Ed. Semester 3 (Internship)">B.Ed. Semester 3 (Internship)</option>
-                  <option value="B.Ed. Semester 4">B.Ed. Semester 4</option>
-                  <option value="D.El.Ed. Semester 1">D.El.Ed. Semester 1</option>
+                  {courses.length > 0 ? (
+                    courses.flatMap((c) =>
+                      Array.from({ length: c.total_semesters || 4 }, (_, i) => (
+                        <option key={`${c.code}-${i + 1}`} value={`${c.name} Semester ${i + 1}`}>
+                          {c.code} - {c.name} (Semester {i + 1})
+                        </option>
+                      ))
+                    )
+                  ) : (
+                    <>
+                      <option value="B.Ed. Semester 1">B.Ed. Semester 1</option>
+                      <option value="B.Ed. Semester 2">B.Ed. Semester 2</option>
+                      <option value="B.Ed. Semester 3 (Internship)">B.Ed. Semester 3 (Internship)</option>
+                      <option value="B.Ed. Semester 4">B.Ed. Semester 4</option>
+                      <option value="D.El.Ed. Semester 1">D.El.Ed. Semester 1</option>
+                    </>
+                  )}
                 </select>
               </div>
 

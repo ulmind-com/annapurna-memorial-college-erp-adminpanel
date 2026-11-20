@@ -11,7 +11,7 @@ import {
   TrendingUp,
   Search,
 } from 'lucide-react';
-import { StudentFeedback } from '../../types';
+import { StudentFeedback, Faculty, Subject } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Modal } from '../common/Modal';
@@ -25,6 +25,8 @@ export const StudentFeedbackView: React.FC = () => {
   const isSuperAdmin = activeRole === 'SUPER_ADMIN';
 
   const [feedbacks, setFeedbacks] = useState<StudentFeedback[]>([]);
+  const [facultyList, setFacultyList] = useState<Faculty[]>([]);
+  const [subjectList, setSubjectList] = useState<Subject[]>([]);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
 
@@ -32,8 +34,8 @@ export const StudentFeedbackView: React.FC = () => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [category, setCategory] = useState<StudentFeedback['category']>('CURRICULUM');
   const [rating, setRating] = useState(5);
-  const [subjectCode, setSubjectCode] = useState('BED-101');
-  const [facultyName, setFacultyName] = useState('Dr. Debabrata Roy');
+  const [subjectCode, setSubjectCode] = useState('');
+  const [facultyName, setFacultyName] = useState('');
   const [comments, setComments] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
 
@@ -52,8 +54,21 @@ export const StudentFeedbackView: React.FC = () => {
 
   const loadFeedbacks = async () => {
     try {
-      const data = await api.getStudentFeedbacks();
+      const [data, facs, subs] = await Promise.all([
+        api.getStudentFeedbacks(),
+        api.getFaculty(),
+        api.getSubjects(),
+      ]);
       setFeedbacks(data);
+      const facultyArr = Array.isArray(facs) ? facs : (facs.items || []);
+      setFacultyList(facultyArr);
+      setSubjectList(subs);
+      if (subs.length > 0 && !subjectCode) {
+        setSubjectCode(subs[0].code);
+      }
+      if (facultyArr.length > 0 && !facultyName) {
+        setFacultyName(facultyArr[0].full_name);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -82,12 +97,12 @@ export const StudentFeedbackView: React.FC = () => {
     try {
       await api.submitFeedback({
         student_id: user?.id || 'st-1',
-        student_name: user?.full_name || 'Ananya Das',
-        roll_number: 'AMC-BED-2024-001',
+        student_name: user?.full_name || 'Enrolled Student',
+        roll_number: user?.role === 'STUDENT' ? (user.id || 'AMC-TR-2024') : 'AMC-TR-2024',
         course_code: 'BED',
         semester: 1,
-        subject_code: subjectCode,
-        faculty_name: facultyName,
+        subject_code: subjectCode || (subjectList[0]?.code || 'BED-101'),
+        faculty_name: facultyName || (facultyList[0]?.full_name || 'Faculty Member'),
         category,
         rating,
         comments,
@@ -129,8 +144,11 @@ export const StudentFeedbackView: React.FC = () => {
   };
 
   const filteredFeedbacks = feedbacks.filter((f) => {
-    if (isStudent && f.roll_number !== 'AMC-BED-2024-001' && !f.is_anonymous) {
-      return false;
+    if (isStudent && !f.is_anonymous) {
+      const isOwner = f.student_id === user?.id || f.student_name === user?.full_name || (user?.roll_number && f.roll_number === user.roll_number);
+      if (!isOwner && f.student_id !== 'st-1') {
+        return false;
+      }
     }
     const matchesSearch =
       f.comments.toLowerCase().includes(search.toLowerCase()) ||
@@ -375,21 +393,35 @@ export const StudentFeedbackView: React.FC = () => {
                 onChange={(e) => setSubjectCode(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
               >
-                <option value="BED-101">BED-101: Childhood & Growing Up</option>
-                <option value="BED-102">BED-102: Contemporary India & Education</option>
-                <option value="BED-103">BED-103: Language Across Curriculum</option>
-                <option value="BED-104">BED-104: Understanding Disciplines</option>
+                {subjectList.length > 0 ? (
+                  subjectList.map((s) => (
+                    <option key={s.id || s.code} value={s.code}>
+                      {s.code}: {s.title}
+                    </option>
+                  ))
+                ) : (
+                  <option value="GEN-101">General Pedagogical Studies</option>
+                )}
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Faculty Member</label>
-              <input
-                type="text"
+              <select
                 value={facultyName}
                 onChange={(e) => setFacultyName(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
-              />
+              >
+                {facultyList.length > 0 ? (
+                  facultyList.map((f) => (
+                    <option key={f.id} value={f.full_name}>
+                      {f.full_name} ({f.designation || 'Faculty'})
+                    </option>
+                  ))
+                ) : (
+                  <option value="Academic Faculty">Academic Faculty Member</option>
+                )}
+              </select>
             </div>
           </div>
 

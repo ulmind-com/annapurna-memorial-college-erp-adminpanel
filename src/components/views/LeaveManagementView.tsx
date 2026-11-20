@@ -13,7 +13,7 @@ import {
   User,
   GraduationCap,
 } from 'lucide-react';
-import { LeaveApplication } from '../../types';
+import { LeaveApplication, Student } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
@@ -29,6 +29,7 @@ export const LeaveManagementView: React.FC = () => {
   const isTeacher = activeRole === 'TEACHER';
 
   const [leaves, setLeaves] = useState<LeaveApplication[]>([]);
+  const [matchedStudent, setMatchedStudent] = useState<Student | null>(null);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
 
@@ -56,8 +57,17 @@ export const LeaveManagementView: React.FC = () => {
 
   const loadLeaves = async () => {
     try {
-      const data = await api.getLeaveApplications();
+      const [data, sRes] = await Promise.all([
+        api.getLeaveApplications(),
+        api.getStudents(),
+      ]);
       setLeaves(data);
+      if (user?.email) {
+        const found = sRes.items.find(
+          (s) => s.email?.toLowerCase() === user.email?.toLowerCase() || s.id === user.id
+        );
+        if (found) setMatchedStudent(found);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -90,11 +100,11 @@ export const LeaveManagementView: React.FC = () => {
 
     try {
       await api.applyForLeave({
-        student_id: user?.id || 'st-1',
-        student_name: user?.full_name || 'Ananya Das',
-        roll_number: 'AMC-BED-2024-001',
-        course_code: 'BED',
-        semester: 1,
+        student_id: matchedStudent?.id || user?.id || 'st-1',
+        student_name: matchedStudent?.full_name || user?.full_name || 'Enrolled Student',
+        roll_number: matchedStudent?.roll_number || 'AMC-TR-2024',
+        course_code: matchedStudent?.course_code || 'BED',
+        semester: matchedStudent?.semester || 1,
         leave_type: leaveType,
         start_date: startDate,
         end_date: endDate,
@@ -146,9 +156,10 @@ export const LeaveManagementView: React.FC = () => {
   };
 
   const filteredLeaves = leaves.filter((l) => {
-    if (isStudent && l.roll_number !== 'AMC-BED-2024-001') {
-      // In student mode, only view own leaves
-      return false;
+    if (isStudent) {
+      const myRoll = matchedStudent?.roll_number || user?.roll_number;
+      const isMyLeave = (myRoll && l.roll_number === myRoll) || l.student_id === user?.id || l.student_name === user?.full_name || l.roll_number === 'AMC-BED-2024-001';
+      if (!isMyLeave) return false;
     }
 
     const matchesSearch =
@@ -358,7 +369,7 @@ export const LeaveManagementView: React.FC = () => {
               <input
                 type="text"
                 disabled
-                value={user?.full_name || 'Ananya Das'}
+                value={matchedStudent?.full_name || user?.full_name || 'Enrolled Student'}
                 className="w-full px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-500 font-bold"
               />
             </div>

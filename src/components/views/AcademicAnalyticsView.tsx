@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -25,10 +25,28 @@ import {
 } from 'recharts';
 import { SoundButton } from '../common/SoundButton';
 import { useSound } from '../../context/SoundContext';
+import { api } from '../../services/api';
+import { Course } from '../../types';
 
 export const AcademicAnalyticsView: React.FC = () => {
+  const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState('BED');
   const { playSuccess } = useSound();
+
+  useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        const cList = await api.getCourses();
+        setCourses(cList);
+        if (cList.length > 0 && !cList.some(c => c.code === selectedCourse)) {
+          setSelectedCourse(cList[0].code);
+        }
+      } catch (e) {
+        console.error('Error loading courses for analytics:', e);
+      }
+    };
+    loadCourses();
+  }, []);
 
   // Subject-wise Pass Percentage & Score Average
   const subjectPerformance = [
@@ -88,9 +106,19 @@ export const AcademicAnalyticsView: React.FC = () => {
             onChange={(e) => setSelectedCourse(e.target.value)}
             className="px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white shadow-xs"
           >
-            <option value="BED">B.Ed. (Bachelor of Education)</option>
-            <option value="DELED">D.El.Ed. (Elementary Education)</option>
-            <option value="BA_ED">B.A. (Honours) in Education</option>
+            {courses.length > 0 ? (
+              courses.map((c) => (
+                <option key={c.id || c.code} value={c.code}>
+                  {c.code} - {c.name}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="BED">B.Ed. (Bachelor of Education)</option>
+                <option value="DELED">D.El.Ed. (Elementary Education)</option>
+                <option value="BA_ED">B.A. (Honours) in Education</option>
+              </>
+            )}
           </select>
 
           <SoundButton

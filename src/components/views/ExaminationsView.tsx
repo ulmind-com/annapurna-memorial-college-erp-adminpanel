@@ -31,7 +31,7 @@ import collegeLogo from '../../assets/logo.png';
 import { useAuth } from '../../context/AuthContext';
 
 export const ExaminationsView: React.FC = () => {
-  const { activeRole } = useAuth();
+  const { activeRole, user } = useAuth();
   const isStudent = activeRole === 'STUDENT';
   const isSuperAdmin = activeRole === 'SUPER_ADMIN';
 
@@ -240,7 +240,12 @@ export const ExaminationsView: React.FC = () => {
 
   // Student-specific Certified Marksheet view
   if (isStudent) {
-    const studentMarksheet = marksheets.find((m) => m.roll_number === 'AMC-BED-2024-001') || marksheets[0];
+    const studentMarksheet = marksheets.find(
+      (m) =>
+        (user?.roll_number && m.roll_number === user.roll_number) ||
+        (user?.full_name && m.student_name?.toLowerCase() === user.full_name.toLowerCase()) ||
+        (user?.id && m.student_id === user.id)
+    ) || marksheets[0];
 
     return (
       <div className="space-y-6 text-slate-900 dark:text-slate-100 animate-in fade-in duration-300">

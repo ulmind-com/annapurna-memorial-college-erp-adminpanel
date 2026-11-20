@@ -12,6 +12,7 @@ export interface User {
   phone?: string;
   avatar_url?: string;
   entity_id?: string;
+  roll_number?: string;
   is_active: boolean;
   created_at?: string;
 }

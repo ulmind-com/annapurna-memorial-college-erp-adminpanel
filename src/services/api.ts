@@ -53,7 +53,7 @@ export const INITIAL_REGISTERED_ACCOUNTS: RegisteredAccount[] = [
   {
     id: 'user-admin-1',
     email: 'admin@annapurnacollege.edu.in',
-    password: 'Admin@Amce2024#',
+    password: 'Admin@123456',
     role: 'SUPER_ADMIN',
     full_name: 'Dr. Arnab Senapati, Principal',
     avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
@@ -62,11 +62,21 @@ export const INITIAL_REGISTERED_ACCOUNTS: RegisteredAccount[] = [
   {
     id: 'user-admin-alias',
     email: 'admin@annapurnacollege.org',
-    password: 'Admin@Amce2024#',
+    password: 'Admin@123456',
     role: 'SUPER_ADMIN',
     full_name: 'Dr. Arnab Senapati, Principal',
     avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
     is_active: true,
+  },
+  {
+    id: 'user-fac-0',
+    email: 'teacher@annapurnacollege.org',
+    password: 'Teacher@123456',
+    role: 'FACULTY',
+    full_name: 'Prof. Soumen Mukherjee',
+    avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+    is_active: true,
+    department: 'Department of Teacher Education',
   },
   {
     id: 'user-fac-1',
@@ -99,6 +109,16 @@ export const INITIAL_REGISTERED_ACCOUNTS: RegisteredAccount[] = [
     department: 'Department of Teacher Education',
   },
   {
+    id: 'user-stud-0',
+    email: 'student@annapurnacollege.org',
+    password: 'Student@123456',
+    role: 'STUDENT',
+    full_name: 'Ananya Das',
+    avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+    is_active: true,
+    roll_number: 'AMC-BED-2024-001',
+  },
+  {
     id: 'user-stud-1',
     email: 'ananya.das@student.annapurnacollege.org',
     password: 'Student@Amce2024#',
@@ -122,11 +142,12 @@ export const INITIAL_REGISTERED_ACCOUNTS: RegisteredAccount[] = [
 
 class ApiClient {
   private token: string | null = null;
-  // Local reactive cache for mock fallback mode
-  private students = [...mockStudents];
-  private faculty = [...mockFaculty];
-  private courses = [...mockCourses];
-  private subjects = [...mockSubjects];
+  // Local reactive cache for mock fallback mode with local persistence
+  private students: Student[] = [...mockStudents];
+  private faculty: Faculty[] = [...mockFaculty];
+  private courses: Course[] = [...mockCourses];
+  private subjects: Subject[] = [...mockSubjects];
+  private studyMaterials: StudyMaterial[] = [...mockStudyMaterials];
   private marksheets = [...mockMarksheets];
   private notices = [...mockNotices];
   private invoices = [...mockInvoices];
@@ -232,10 +253,34 @@ class ApiClient {
     established: 2012,
   };
 
+  public getCachedList<T>(key: string, defaultData: T[]): T[] {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch {}
+      }
+    }
+    return defaultData;
+  }
+
+  public setCachedList<T>(key: string, data: T[]): void {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(data));
+    }
+  }
+
   constructor() {
     if (typeof window !== 'undefined') {
       this.token = localStorage.getItem('annapurna_erp_token');
     }
+    this.students = this.getCachedList('annapurna_students', mockStudents);
+    this.faculty = this.getCachedList('annapurna_faculty', mockFaculty);
+    this.courses = this.getCachedList('annapurna_courses', mockCourses);
+    this.subjects = this.getCachedList('annapurna_subjects', mockSubjects);
+    this.studyMaterials = this.getCachedList('annapurna_study_materials', mockStudyMaterials);
   }
 
   public setToken(token: string | null) {
@@ -251,9 +296,22 @@ class ApiClient {
     return this.token;
   }
 
+  public getCurrentUser(): User | null {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('annapurna_current_user');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {}
+      }
+    }
+    return null;
+  }
+
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers as Record<string, string>),
     };
 
@@ -417,15 +475,18 @@ class ApiClient {
         body: JSON.stringify(data),
       });
       createdStudent = res;
+      this.students = [createdStudent, ...this.students.filter((s) => s.id !== createdStudent.id)];
+      this.setCachedList('annapurna_students', this.students);
     } catch {
+      const matchedCourse = this.courses.find((c) => c.code === (data.course_code || 'BED'));
       createdStudent = {
         id: `st-${Date.now()}`,
-        roll_number: data.roll_number || `AMC-BED-2024-${this.students.length + 10}`,
+        roll_number: data.roll_number || `AMC-${data.course_code || 'BED'}-2024-${this.students.length + 10}`,
         full_name: data.full_name || 'New Trainee',
         email: data.email || `trainee.${Date.now()}@student.annapurnacollege.org`,
         phone: data.phone || '+91 9999999999',
         course_code: data.course_code || 'BED',
-        course_name: 'Bachelor of Education (B.Ed.)',
+        course_name: data.course_name || (matchedCourse ? matchedCourse.name : 'Bachelor of Education (B.Ed.)'),
         academic_session: data.academic_session || '2024-2026',
         semester: Number(data.semester) || 1,
         section: data.section || 'A',
@@ -438,15 +499,17 @@ class ApiClient {
         avatar_url: `https://api.dicebear.com/7.x/adventurer/svg?seed=${data.roll_number || 'AMC'}`,
         created_at: new Date().toISOString(),
       };
-      this.students.unshift(createdStudent);
+      this.students = [createdStudent, ...this.students];
+      this.setCachedList('annapurna_students', this.students);
     }
 
+    const finalPassword = (createdStudent as any).generated_password || generated_password;
     const accounts = this.getRegisteredAccounts();
     const existingIdx = accounts.findIndex((a) => a.email.toLowerCase() === createdStudent.email.toLowerCase());
     const newAccount: RegisteredAccount = {
       id: `user-${createdStudent.id}`,
       email: createdStudent.email,
-      password: generated_password,
+      password: finalPassword,
       role: 'STUDENT',
       full_name: createdStudent.full_name,
       avatar_url: createdStudent.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
@@ -461,16 +524,22 @@ class ApiClient {
     }
     this.saveRegisteredAccounts(accounts);
 
-    return { ...createdStudent, generated_password };
+    return { ...createdStudent, generated_password: finalPassword };
   }
 
   // --- FACULTY ---
   async getFaculty(): Promise<{ items: Faculty[]; total: number }> {
     try {
-      return await this.request<{ items: Faculty[]; total: number }>('/faculty');
+      const res = await this.request<{ items: Faculty[]; total: number }>('/faculty');
+      if (res && Array.isArray(res.items)) {
+        this.faculty = res.items;
+        this.setCachedList('annapurna_faculty', res.items);
+        return res;
+      }
     } catch {
-      return { items: this.faculty, total: this.faculty.length };
+      // fallback
     }
+    return { items: this.faculty, total: this.faculty.length };
   }
 
   async createFaculty(data: Partial<Faculty>): Promise<Faculty & { generated_password?: string }> {
@@ -483,6 +552,8 @@ class ApiClient {
         body: JSON.stringify(data),
       });
       createdFaculty = res;
+      this.faculty = [createdFaculty, ...this.faculty.filter((f) => f.id !== createdFaculty.id)];
+      this.setCachedList('annapurna_faculty', this.faculty);
     } catch {
       createdFaculty = {
         id: `fac-${Date.now()}`,
@@ -500,15 +571,17 @@ class ApiClient {
         avatar_url: `https://api.dicebear.com/7.x/micah/svg?seed=${data.employee_id || 'FAC'}`,
         created_at: new Date().toISOString(),
       };
-      this.faculty.unshift(createdFaculty);
+      this.faculty = [createdFaculty, ...this.faculty];
+      this.setCachedList('annapurna_faculty', this.faculty);
     }
 
+    const finalPassword = (createdFaculty as any).generated_password || generated_password;
     const accounts = this.getRegisteredAccounts();
     const existingIdx = accounts.findIndex((a) => a.email.toLowerCase() === createdFaculty.email.toLowerCase());
     const newAccount: RegisteredAccount = {
       id: `user-${createdFaculty.id}`,
       email: createdFaculty.email,
-      password: generated_password,
+      password: finalPassword,
       role: 'FACULTY',
       full_name: createdFaculty.full_name,
       avatar_url: createdFaculty.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
@@ -523,28 +596,38 @@ class ApiClient {
     }
     this.saveRegisteredAccounts(accounts);
 
-    return { ...createdFaculty, generated_password };
+    return { ...createdFaculty, generated_password: finalPassword };
   }
 
   // --- ACADEMICS ---
   async getCourses(): Promise<Course[]> {
     try {
-      return await this.request<Course[]>('/academics/courses');
+      const res = await this.request<Course[]>('/academics/courses');
+      if (Array.isArray(res) && res.length > 0) {
+        this.courses = res;
+        this.setCachedList('annapurna_courses', res);
+        return res;
+      }
     } catch {
-      return this.courses;
+      // fallback
     }
+    return this.courses;
   }
 
   async createCourse(data: Partial<Course>): Promise<Course> {
+    const code = (data.code || `NEW_${Date.now()}`).toUpperCase().trim();
     try {
-      return await this.request<Course>('/academics/courses', {
+      const res = await this.request<Course>('/academics/courses', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, code }),
       });
+      this.courses = [res, ...this.courses.filter((c) => c.code !== code && c.id !== res.id)];
+      this.setCachedList('annapurna_courses', this.courses);
+      return res;
     } catch {
       const newCourse: Course = {
         id: `course-${Date.now()}`,
-        code: data.code || `NEW_${Date.now()}`,
+        code,
         name: data.name || 'New Degree Course',
         department: data.department || 'Department of Teacher Education',
         duration_years: Number(data.duration_years) || 2,
@@ -554,21 +637,31 @@ class ApiClient {
         description: data.description || 'Professional educator training program.',
         is_active: true,
       };
-      this.courses.push(newCourse);
+      this.courses = [newCourse, ...this.courses.filter((c) => c.code !== code)];
+      this.setCachedList('annapurna_courses', this.courses);
       return newCourse;
     }
   }
 
   async updateCourse(id: string, data: Partial<Course>): Promise<Course> {
     try {
-      return await this.request<Course>(`/academics/courses/${id}`, {
+      const res = await this.request<Course>(`/academics/courses/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       });
+      const idx = this.courses.findIndex((c) => c.id === id || c.code === id);
+      if (idx !== -1) {
+        this.courses[idx] = res;
+      } else {
+        this.courses.push(res);
+      }
+      this.setCachedList('annapurna_courses', this.courses);
+      return res;
     } catch {
       const idx = this.courses.findIndex((c) => c.id === id || c.code === id);
       if (idx !== -1) {
         this.courses[idx] = { ...this.courses[idx], ...data };
+        this.setCachedList('annapurna_courses', this.courses);
         return this.courses[idx];
       }
       throw new Error('Course not found');
@@ -578,28 +671,36 @@ class ApiClient {
   async deleteCourse(id: string): Promise<boolean> {
     try {
       await this.request(`/academics/courses/${id}`, { method: 'DELETE' });
-      return true;
-    } catch {
-      this.courses = this.courses.filter((c) => c.id !== id && c.code !== id);
-      return true;
-    }
+    } catch {}
+    this.courses = this.courses.filter((c) => c.id !== id && c.code !== id);
+    this.setCachedList('annapurna_courses', this.courses);
+    return true;
   }
 
   async getSubjects(course_code?: string): Promise<Subject[]> {
     try {
       const qs = course_code ? `?course_code=${course_code}` : '';
-      return await this.request<Subject[]>(`/academics/subjects${qs}`);
-    } catch {
-      return course_code ? this.subjects.filter((s) => s.course_code === course_code) : this.subjects;
-    }
+      const res = await this.request<Subject[]>(`/academics/subjects${qs}`);
+      if (Array.isArray(res) && res.length > 0) {
+        if (!course_code) {
+          this.subjects = res;
+          this.setCachedList('annapurna_subjects', res);
+        }
+        return res;
+      }
+    } catch {}
+    return course_code ? this.subjects.filter((s) => s.course_code === course_code) : this.subjects;
   }
 
   async createSubject(data: Partial<Subject>): Promise<Subject> {
     try {
-      return await this.request<Subject>('/academics/subjects', {
+      const res = await this.request<Subject>('/academics/subjects', {
         method: 'POST',
         body: JSON.stringify(data),
       });
+      this.subjects.push(res);
+      this.setCachedList('annapurna_subjects', this.subjects);
+      return res;
     } catch {
       const sub: Subject = {
         id: `sub-${Date.now()}`,
@@ -612,9 +713,10 @@ class ApiClient {
         pass_marks: Number(data.pass_marks) || 40,
         theory_marks: Number(data.theory_marks) || 70,
         practical_marks: Number(data.practical_marks) || 30,
-        faculty_name: data.faculty_name || 'Dr. Debabrata Roy',
+        faculty_name: data.faculty_name || 'Faculty Member',
       };
       this.subjects.push(sub);
+      this.setCachedList('annapurna_subjects', this.subjects);
       return sub;
     }
   }
@@ -1021,12 +1123,79 @@ class ApiClient {
   }
 
   // --- STUDY MATERIALS ---
-  async getStudyMaterials(): Promise<StudyMaterial[]> {
+  async getStudyMaterials(params?: { course_code?: string; semester?: number; subject_code?: string }): Promise<StudyMaterial[]> {
     try {
-      return await this.request<StudyMaterial[]>('/study-materials');
-    } catch {
-      return mockStudyMaterials;
+      const queryEntries = Object.entries(params || {}).filter(([_, v]) => v !== undefined && v !== '');
+      const qs = queryEntries.length > 0 ? '?' + new URLSearchParams(queryEntries.map(([k, v]) => [k, String(v)])).toString() : '';
+      const list = await this.request<StudyMaterial[]>(`/study-materials${qs}`);
+      if (Array.isArray(list)) {
+        this.studyMaterials = list;
+        this.setCachedList('annapurna_study_materials', list);
+        return list;
+      }
+    } catch {}
+
+    let res = [...this.studyMaterials];
+    if (params?.course_code) {
+      res = res.filter((m) => m.course_code.toUpperCase() === params.course_code?.toUpperCase());
     }
+    if (params?.semester) {
+      res = res.filter((m) => Number(m.semester) === Number(params.semester));
+    }
+    if (params?.subject_code) {
+      res = res.filter((m) => m.subject_code.toUpperCase() === params.subject_code?.toUpperCase());
+    }
+    return res;
+  }
+
+  async uploadStudyMaterial(formData: FormData): Promise<StudyMaterial> {
+    try {
+      const res = await this.request<StudyMaterial>('/study-materials', {
+        method: 'POST',
+        body: formData,
+      });
+      this.studyMaterials = [res, ...this.studyMaterials.filter((m) => m.id !== res.id)];
+      this.setCachedList('annapurna_study_materials', this.studyMaterials);
+      return res;
+    } catch {
+      const title = (formData.get('title') as string) || 'Study Notes & Materials';
+      const description = (formData.get('description') as string) || '';
+      const course_code = ((formData.get('course_code') as string) || 'BED').toUpperCase();
+      const semester = Number(formData.get('semester')) || 1;
+      const subject_code = ((formData.get('subject_code') as string) || 'BED-101').toUpperCase();
+      const tagsStr = (formData.get('tags') as string) || '';
+      const tags = tagsStr.split(',').map((t) => t.trim()).filter(Boolean);
+      const file = formData.get('file') as File | null;
+
+      const user = this.getCurrentUser();
+      const newMat: StudyMaterial = {
+        id: `mat-${Date.now()}`,
+        title,
+        description,
+        course_code,
+        semester,
+        subject_code,
+        file_url: file ? URL.createObjectURL(file) : '/sample_study_material.pdf',
+        file_type: file ? file.name.split('.').pop()?.toLowerCase() || 'pdf' : 'pdf',
+        file_size_bytes: file ? file.size : 1024 * 350,
+        tags: tags.length > 0 ? tags : ['Faculty Lecture Notes', course_code],
+        uploaded_by_name: user?.full_name || 'Prof. Faculty Member',
+        downloads_count: 0,
+        created_at: new Date().toISOString(),
+      };
+      this.studyMaterials = [newMat, ...this.studyMaterials];
+      this.setCachedList('annapurna_study_materials', this.studyMaterials);
+      return newMat;
+    }
+  }
+
+  async deleteStudyMaterial(id: string): Promise<boolean> {
+    try {
+      await this.request(`/study-materials/${id}`, { method: 'DELETE' });
+    } catch {}
+    this.studyMaterials = this.studyMaterials.filter((m) => m.id !== id);
+    this.setCachedList('annapurna_study_materials', this.studyMaterials);
+    return true;
   }
 
   // --- AUDIT LOGS ---
@@ -1059,8 +1228,8 @@ class ApiClient {
       const newLeave: LeaveApplication = {
         id: `leave-${Date.now()}`,
         student_id: data.student_id || 'st-1',
-        student_name: data.student_name || 'Ananya Das',
-        roll_number: data.roll_number || 'AMC-BED-2024-001',
+        student_name: data.student_name || 'Enrolled Student',
+        roll_number: data.roll_number || 'AMC-TR-2024',
         course_code: data.course_code || 'BED',
         semester: Number(data.semester) || 1,
         leave_type: data.leave_type || 'MEDICAL',
@@ -1122,8 +1291,8 @@ class ApiClient {
       const newFb: StudentFeedback = {
         id: `fb-${Date.now()}`,
         student_id: data.student_id || 'st-1',
-        student_name: data.is_anonymous ? 'Anonymous Trainee' : (data.student_name || 'Ananya Das'),
-        roll_number: data.is_anonymous ? 'ANON' : (data.roll_number || 'AMC-BED-2024-001'),
+        student_name: data.is_anonymous ? 'Anonymous Trainee' : (data.student_name || 'Enrolled Student'),
+        roll_number: data.is_anonymous ? 'ANON' : (data.roll_number || 'AMC-TR-2024'),
         course_code: data.course_code || 'BED',
         semester: Number(data.semester) || 1,
         subject_code: data.subject_code,

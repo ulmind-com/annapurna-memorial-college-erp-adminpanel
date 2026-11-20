@@ -11,12 +11,17 @@ import {
   Sparkles,
   QrCode,
   FileText,
+  Library,
+  ArrowRight,
+  ShieldCheck,
+  Tag,
 } from 'lucide-react';
 import { api } from '../../services/api';
-import { Marksheet } from '../../types';
+import { Marksheet, Student, StudyMaterial, LeaveApplication, Subject } from '../../types';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { useSound } from '../../context/SoundContext';
+import { useAuth } from '../../context/AuthContext';
 import collegeLogo from '../../assets/logo.png';
 
 interface StudentDashboardViewProps {
@@ -24,22 +29,65 @@ interface StudentDashboardViewProps {
 }
 
 export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNavigate }) => {
+  const { user } = useAuth();
+  const [student, setStudent] = useState<Student | null>(null);
   const [marksheet, setMarksheet] = useState<Marksheet | null>(null);
-  const { playSuccess, playHaptic } = useSound();
+  const [studyMaterials, setStudyMaterials] = useState<StudyMaterial[]>([]);
+  const [leaves, setLeaves] = useState<LeaveApplication[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const { playSuccess, playHaptic, playPop } = useSound();
 
   useEffect(() => {
     const loadStudentData = async () => {
       try {
+        // 1. Fetch student's record matching email or name or roll
+        const studentRes = await api.getStudents();
+        const found =
+          studentRes.items.find(
+            (s) =>
+              (user?.email && s.email.toLowerCase() === user.email.toLowerCase()) ||
+              (user?.roll_number && s.roll_number === user.roll_number) ||
+              (user?.full_name && s.full_name.toLowerCase() === user.full_name.toLowerCase())
+          ) || studentRes.items[0];
+
+        if (found) {
+          setStudent(found);
+        }
+
+        // 2. Fetch marksheet
         const msList = await api.getExamMarksheets('exam-1');
-        // Find Ananya Das's published marksheet
-        const published = msList.find((m) => m.roll_number === 'AMC-BED-2024-001') || msList[0];
-        setMarksheet(published);
+        const studentRoll = found?.roll_number || user?.roll_number || 'AMC-TR-2024';
+        const myMarksheet = msList.find(
+          (m) =>
+            m.roll_number.toLowerCase() === studentRoll.toLowerCase() ||
+            m.student_name.toLowerCase() === (user?.full_name || '').toLowerCase()
+        ) || msList[0];
+        setMarksheet(myMarksheet || null);
+
+        // 3. Fetch Study Materials uploaded by teachers
+        const courseCode = found?.course_code || 'BED';
+        const materials = await api.getStudyMaterials({ course_code: courseCode });
+        setStudyMaterials(materials);
+
+        // 4. Fetch Student Leaves
+        const leaveList = await api.getLeaveApplications();
+        const myLeaves = leaveList.filter(
+          (l) =>
+            (found && (l.student_id === found.id || l.roll_number === found.roll_number)) ||
+            (user?.full_name && l.student_name.toLowerCase() === user.full_name.toLowerCase())
+        );
+        setLeaves(myLeaves.length > 0 ? myLeaves : leaveList.slice(0, 2));
+
+        // 5. Fetch subjects for schedule
+        const subList = await api.getSubjects(courseCode);
+        setSubjects(subList);
       } catch (e) {
-        console.error(e);
+        console.error('Error loading student dashboard data:', e);
       }
     };
+
     loadStudentData();
-  }, []);
+  }, [user]);
 
   const handleDownloadPdf = async () => {
     if (!marksheet) return;
@@ -59,6 +107,36 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
     }
   };
 
+  const handleDownloadMaterial = (m: StudyMaterial) => {
+    playSuccess();
+    if (m.file_url && m.file_url !== '/sample_study_material.pdf' && m.file_url !== '/sample_note.pdf') {
+      window.open(m.file_url, '_blank');
+    } else {
+      const noteContent = `ANNAPURNA MEMORIAL COLLEGE OF EDUCATION\nDIGITAL SYLLABUS VAULT\n\nTitle: ${m.title}\nCourse: ${m.course_code} (Semester ${m.semester})\nSubject: ${m.subject_code}\nUploaded By: ${m.uploaded_by_name}\nDate: ${m.created_at || new Date().toLocaleDateString()}\n\nDescription:\n${m.description || 'Comprehensive lecture notes and practicum guidelines prepared per BSAEU & NCTE curriculum.'}\n\nTopics Covered:\n${m.tags.join(', ')}\n\n(Official Certified Digital Material)`;
+      const blob = new Blob([noteContent], { type: 'text/plain;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${m.subject_code}_${m.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    }
+  };
+
+  const displayName = user?.full_name || student?.full_name || 'Teacher Trainee';
+  const displayRoll = student?.roll_number || user?.roll_number || 'AMC-TR-2024';
+  const displayCourse = student?.course_name || 'Bachelor of Education (B.Ed.)';
+  const displaySemester = student?.semester || 1;
+  const displayReg = student?.registration_number || `BSAEU-2024-${displayRoll.slice(-5)}`;
+  const displayAvatar =
+    user?.avatar_url ||
+    student?.avatar_url ||
+    `https://api.dicebear.com/7.x/adventurer/svg?seed=${displayRoll}`;
+
+  const clearedLeavesCount = leaves.filter((l) => l.status === 'APPROVED').length;
+
   return (
     <div className="space-y-6 text-slate-800 dark:text-slate-100">
       {/* Student Welcome Banner */}
@@ -67,9 +145,9 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
           <div className="flex items-center gap-5">
             <div className="relative">
               <img
-                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200"
-                alt="Ananya Das"
-                className="w-20 h-20 rounded-full border-4 border-white/30 object-cover shadow-md"
+                src={displayAvatar}
+                alt={displayName}
+                className="w-20 h-20 rounded-full border-4 border-white/30 object-cover shadow-md bg-white/10"
               />
               <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full border-2 border-white bg-white shadow-sm flex items-center justify-center overflow-hidden">
                 <img
@@ -86,26 +164,43 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white uppercase tracking-wider">
                 Annapurna Memorial College of Education • Trainee Portal
               </span>
-              <h1 className="text-2xl font-black tracking-tight">Welcome back, Ananya Das!</h1>
+              <h1 className="text-2xl font-black tracking-tight">Welcome back, {displayName}!</h1>
               <div className="text-xs text-blue-100 flex flex-wrap items-center gap-2">
-                <span>Roll: <b>AMC-BED-2024-001</b></span>
+                <span>
+                  Roll: <b>{displayRoll}</b>
+                </span>
                 <span>•</span>
-                <span>BSAEU Reg: <b>BSAEU-2024-81001</b></span>
+                <span>
+                  Reg: <b>{displayReg}</b>
+                </span>
                 <span>•</span>
-                <span>Bachelor of Education (B.Ed.) Sem 1</span>
+                <span>
+                  {displayCourse} Sem {displaySemester}
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {marksheet && (
+              <SoundButton
+                onClick={handleDownloadPdf}
+                variant="white"
+                size="sm"
+                soundType="haptic"
+                icon={<Download className="w-4 h-4 text-blue-600" />}
+              >
+                Download Marksheet PDF
+              </SoundButton>
+            )}
             <SoundButton
-              onClick={handleDownloadPdf}
-              variant="white"
+              onClick={() => onNavigate('materials')}
+              variant="secondary"
               size="sm"
-              soundType="haptic"
-              icon={<Download className="w-4 h-4 text-blue-600" />}
+              soundType="pop"
+              icon={<Library className="w-4 h-4" />}
             >
-              Download Marksheet PDF
+              Study Notes Vault
             </SoundButton>
           </div>
         </div>
@@ -125,7 +220,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
           </div>
           <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">88.3%</div>
           <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
-            Compliant (NCTE ≥ 75% required)
+            Compliant (NCTE ≥ 75% rule satisfied)
           </div>
         </div>
 
@@ -140,10 +235,13 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
             </div>
           </div>
           <div className="text-2xl font-extrabold text-blue-600 dark:text-blue-400 mt-2">
-            {marksheet ? marksheet.sgpa : '9.29'}
+            {marksheet ? marksheet.sgpa : 'In Progress'}
           </div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-            Grade: <b className="text-slate-800 dark:text-slate-200">O (Outstanding)</b>
+            Grade:{' '}
+            <b className="text-slate-800 dark:text-slate-200">
+              {marksheet ? marksheet.result_status || 'O (Outstanding)' : 'Pending Evaluation'}
+            </b>
           </div>
         </div>
 
@@ -157,42 +255,132 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
               <Clock className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">1 Cleared</div>
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">
+            {clearedLeavesCount} Approved
+          </div>
           <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
-            Official Absence Sanctioned
+            {leaves.length - clearedLeavesCount > 0
+              ? `${leaves.length - clearedLeavesCount} Request Pending Review`
+              : 'Official Absence Sanctioned'}
           </div>
         </div>
 
-        {/* Practicum Portfolios */}
+        {/* Notes & Syllabus Materials */}
         <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Micro-Teaching
+              Study Materials
             </span>
             <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400">
               <BookOpen className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">5 of 5</div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Lesson Plans Approved</div>
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">
+            {studyMaterials.length} Documents
+          </div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Uploaded by Faculty</div>
         </div>
+      </div>
+
+      {/* CORE FEATURE: Notes & Study Materials Uploaded by Teachers */}
+      <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+                Digital Repository
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Real-time Sync with Faculty Desk
+              </span>
+            </div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white mt-1 flex items-center gap-2">
+              <Library className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              Latest Course Notes & Study Materials from Faculty
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Instant access to lecture notes, model question banks, and practicum blueprints uploaded by your teachers
+            </p>
+          </div>
+
+          <SoundButton
+            onClick={() => onNavigate('materials')}
+            size="sm"
+            variant="outline"
+            soundType="pop"
+            icon={<ArrowRight className="w-4 h-4" />}
+          >
+            Open All Notes
+          </SoundButton>
+        </div>
+
+        {studyMaterials.length === 0 ? (
+          <div className="p-8 text-center rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-xs text-slate-500 space-y-2">
+            <BookOpen className="w-8 h-8 text-slate-400 mx-auto" />
+            <p>No study materials uploaded for this program yet. Check back soon or visit the digital vault.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {studyMaterials.slice(0, 4).map((m) => (
+              <div
+                key={m.id}
+                className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 hover:border-blue-300 dark:hover:border-blue-700 transition-all flex flex-col justify-between space-y-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                      {m.subject_code} (Sem {m.semester})
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      Uploaded by {m.uploaded_by_name}
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-2 leading-snug">
+                    {m.title}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                    {m.description || 'BSAEU & NCTE course pedagogy lesson notes and practicum guidelines.'}
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between">
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                    <Tag className="w-3 h-3 text-slate-400" />
+                    <span>{m.tags?.[0] || 'Faculty Notes'}</span>
+                  </div>
+                  <SoundButton
+                    onClick={() => handleDownloadMaterial(m)}
+                    size="sm"
+                    variant="primary"
+                    soundType="pop"
+                    icon={<Download className="w-3 h-3" />}
+                  >
+                    Download Notes
+                  </SoundButton>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Certified Marksheet Card */}
       {marksheet && (
-        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
             <div>
               <div className="text-xs font-bold text-blue-600 uppercase tracking-wider">
                 Baba Saheb Ambedkar Education University (BSAEU)
               </div>
-              <h3 className="text-lg font-black text-slate-900 mt-0.5">
-                Statement of Marks & Grades (Semester I)
+              <h3 className="text-lg font-black text-slate-900 dark:text-white mt-0.5">
+                Official Statement of Marks & Grades ({displayCourse} Sem {displaySemester})
               </h3>
-              <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-                <span>Examination: <b>{marksheet.exam_title}</b></span>
+              <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                <span>
+                  Examination: <b>{marksheet.exam_title}</b>
+                </span>
                 <span>•</span>
-                <span className="font-mono text-emerald-600">Hash: {marksheet.qr_code_hash}</span>
+                <span className="font-mono text-emerald-600">Tamper-evident Hash: {marksheet.qr_code_hash}</span>
               </div>
             </div>
 
@@ -214,7 +402,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-wider text-[10px]">
+                <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
                   <th className="py-2.5 px-3">Subject Code & Title</th>
                   <th className="py-2.5 px-3 text-center">Credits</th>
                   <th className="py-2.5 px-3 text-center">Theory</th>
@@ -224,28 +412,28 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
                   <th className="py-2.5 px-3 text-center">Letter Grade</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {marksheet.subject_scores.map((sc) => (
-                  <tr key={sc.subject_code} className="hover:bg-slate-50">
+                  <tr key={sc.subject_code} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td className="py-3 px-3">
-                      <div className="font-bold text-slate-900">{sc.subject_title}</div>
+                      <div className="font-bold text-slate-900 dark:text-white">{sc.subject_title}</div>
                       <div className="text-[10px] text-slate-400 font-mono">{sc.subject_code}</div>
                     </td>
                     <td className="py-3 px-3 text-center font-medium">{sc.credits}</td>
-                    <td className="py-3 px-3 text-center text-slate-700 font-medium">
+                    <td className="py-3 px-3 text-center text-slate-700 dark:text-slate-300 font-medium">
                       {sc.theory_obtained} / {sc.max_theory}
                     </td>
-                    <td className="py-3 px-3 text-center text-slate-700 font-medium">
+                    <td className="py-3 px-3 text-center text-slate-700 dark:text-slate-300 font-medium">
                       {sc.practical_obtained} / {sc.max_practical}
                     </td>
-                    <td className="py-3 px-3 text-center font-bold text-slate-900">
+                    <td className="py-3 px-3 text-center font-bold text-slate-900 dark:text-white">
                       {sc.total_obtained} / {sc.max_marks}
                     </td>
-                    <td className="py-3 px-3 text-center font-extrabold text-blue-600">
+                    <td className="py-3 px-3 text-center font-extrabold text-blue-600 dark:text-blue-400">
                       {sc.grade_point}
                     </td>
                     <td className="py-3 px-3 text-center">
-                      <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-blue-50 text-blue-700 border border-blue-200">
+                      <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                         {sc.letter_grade}
                       </span>
                     </td>
@@ -255,47 +443,54 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
             </table>
           </div>
 
-          <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 flex flex-wrap items-center justify-between gap-4 text-xs">
+          <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/60 flex flex-wrap items-center justify-between gap-4 text-xs">
             <div>
-              <span className="text-slate-500">Total Marks Obtained: </span>
-              <b className="text-slate-900 text-sm">
+              <span className="text-slate-500 dark:text-slate-400">Total Marks Obtained: </span>
+              <b className="text-slate-900 dark:text-white text-sm">
                 {marksheet.total_marks_obtained} / {marksheet.grand_max_marks} ({marksheet.overall_percentage}%)
               </b>
             </div>
             <div>
-              <span className="text-slate-500">SGPA: </span>
-              <b className="text-blue-700 text-base">{marksheet.sgpa}</b>
+              <span className="text-slate-500 dark:text-slate-400">SGPA: </span>
+              <b className="text-blue-700 dark:text-blue-400 text-base">{marksheet.sgpa}</b>
             </div>
             <div>
-              <span className="text-slate-500">Final Classification: </span>
-              <b className="text-emerald-700 font-bold">{marksheet.result_status}</b>
+              <span className="text-slate-500 dark:text-slate-400">Final Classification: </span>
+              <b className="text-emerald-700 dark:text-emerald-400 font-bold">{marksheet.result_status}</b>
             </div>
           </div>
         </div>
       )}
 
-      {/* Trainee's Weekly Schedule Preview */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs">
-        <h3 className="text-base font-bold text-slate-900 pb-3 border-b border-slate-100 flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-blue-600" />
-          Today's Class Schedule & Internship Timing
+      {/* Trainee's Schedule derived from Curriculum */}
+      <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        <h3 className="text-base font-bold text-slate-900 dark:text-white pb-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          Today's Class Schedule & Practicum Timing ({displayCourse})
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 text-xs">
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
-            <span className="text-[10px] font-bold text-blue-600">09:30 AM - 10:15 AM</span>
-            <div className="font-bold text-slate-900 mt-1">BED-101: Childhood and Growing Up</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Dr. Debabrata Roy • Room 204</div>
-          </div>
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
-            <span className="text-[10px] font-bold text-purple-600">11:15 AM - 12:00 PM</span>
-            <div className="font-bold text-slate-900 mt-1">BED-103: Language Across Curriculum</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Prof. Mousumi Mukherjee • Room 108</div>
-          </div>
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
-            <span className="text-[10px] font-bold text-emerald-600">02:00 PM - 03:30 PM</span>
-            <div className="font-bold text-slate-900 mt-1">BED-105: Drama & Art EPC Workshop</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Smt. Priyanka Mondal • Activity Hall</div>
-          </div>
+          {subjects.length > 0 ? (
+            subjects.slice(0, 3).map((sub, idx) => (
+              <div
+                key={sub.code}
+                className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60"
+              >
+                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                  {idx === 0 ? '09:30 AM - 10:15 AM' : idx === 1 ? '11:15 AM - 12:00 PM' : '02:00 PM - 03:30 PM'}
+                </span>
+                <div className="font-bold text-slate-900 dark:text-white mt-1">
+                  {sub.code}: {sub.title}
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  {sub.faculty_name} • Pedagogy Room {204 + idx}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="col-span-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-center text-slate-400 text-xs">
+              No classes scheduled for today.
+            </div>
+          )}
         </div>
       </div>
     </div>

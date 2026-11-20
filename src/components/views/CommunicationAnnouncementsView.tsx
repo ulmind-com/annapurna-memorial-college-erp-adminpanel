@@ -10,7 +10,7 @@ import {
   Sparkles,
   AlertTriangle,
 } from 'lucide-react';
-import { ClassAnnouncement } from '../../types';
+import { ClassAnnouncement, Course } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Modal } from '../common/Modal';
@@ -21,6 +21,7 @@ import { formatIST } from '../../utils/date';
 export const CommunicationAnnouncementsView: React.FC = () => {
   const { user } = useAuth();
   const [announcements, setAnnouncements] = useState<ClassAnnouncement[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [title, setTitle] = useState('');
@@ -35,8 +36,15 @@ export const CommunicationAnnouncementsView: React.FC = () => {
 
   const loadAnnouncements = async () => {
     try {
-      const data = await api.getClassAnnouncements();
+      const [data, courseList] = await Promise.all([
+        api.getClassAnnouncements(),
+        api.getCourses(),
+      ]);
       setAnnouncements(data);
+      setCourses(courseList);
+      if (courseList.length > 0 && !courseList.some(c => c.code === courseCode)) {
+        setCourseCode(courseList[0].code);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -186,9 +194,11 @@ export const CommunicationAnnouncementsView: React.FC = () => {
                 onChange={(e) => setCourseCode(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
               >
-                <option value="BED">B.Ed.</option>
-                <option value="DELED">D.El.Ed.</option>
-                <option value="BA_ED">B.A. Education</option>
+                {courses.map((c) => (
+                  <option key={c.id || c.code} value={c.code}>
+                    {c.code} - {c.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -199,7 +209,10 @@ export const CommunicationAnnouncementsView: React.FC = () => {
                 onChange={(e) => setSemester(Number(e.target.value))}
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
               >
-                {[1, 2, 3, 4].map((s) => (
+                {Array.from(
+                  { length: courses.find((c) => c.code === courseCode)?.total_semesters || 4 },
+                  (_, i) => i + 1
+                ).map((s) => (
                   <option key={s} value={s}>
                     Semester {s}
                   </option>
