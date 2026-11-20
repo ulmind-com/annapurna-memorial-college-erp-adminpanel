@@ -100,10 +100,10 @@ export const INITIAL_REGISTERED_ACCOUNTS: RegisteredAccount[] = [
   },
   {
     id: 'user-fac-3',
-    email: 'ria.sharma@annapurnacollege.edu.in',
-    password: 'Teacher@Amce2024#',
+    email: 'debabrata.roy@annapurnacollege.edu.in',
+    password: 'Teacher@123456',
     role: 'FACULTY',
-    full_name: 'Ms. Ria Sharma',
+    full_name: 'Dr. Debabrata Roy',
     avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
     is_active: true,
     department: 'Department of Teacher Education',
@@ -113,10 +113,10 @@ export const INITIAL_REGISTERED_ACCOUNTS: RegisteredAccount[] = [
     email: 'student@annapurnacollege.org',
     password: 'Student@123456',
     role: 'STUDENT',
-    full_name: 'Ananya Das',
+    full_name: 'Teacher Trainee',
     avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
     is_active: true,
-    roll_number: 'AMC-BED-2024-001',
+    roll_number: 'AMC-TR-2024-001',
   },
   {
     id: 'user-stud-1',
@@ -319,11 +319,17 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
+    // Set an AbortController with 3500ms timeout so requests NEVER hang or spin endlessly
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
     try {
       const response = await fetch(`${BASE_URL}${endpoint}`, {
         ...options,
         headers,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -332,6 +338,7 @@ class ApiClient {
 
       return (await response.json()) as T;
     } catch (err) {
+      clearTimeout(timeoutId);
       // Re-throw to allow fallback in specific service methods
       throw err;
     }

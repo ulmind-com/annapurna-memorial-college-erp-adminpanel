@@ -250,11 +250,9 @@ export const LoginView: React.FC = () => {
             </svg>
           </div>
 
-          {/* Bottom Trust Badge */}
+          {/* Bottom Badge */}
           <div className="pt-2 flex items-center justify-between text-[11px] text-blue-200/80 border-t border-white/15 relative z-10">
-            <span>BSAEU Affiliated</span>
-            <span>•</span>
-            <span>NCTE Recognized</span>
+            <span>Institutional ERP Portal</span>
             <span>•</span>
             <span>Code: AMCE-743349</span>
           </div>

@@ -19,64 +19,65 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const getInitialStoredUser = (): User | null => {
+  if (typeof window === 'undefined') return null;
+  const token = localStorage.getItem('annapurna_erp_token');
+  const savedUser = localStorage.getItem('annapurna_current_user');
+  if (token && token !== 'null' && savedUser) {
+    try {
+      const parsed = JSON.parse(savedUser);
+      if (parsed && (parsed.id || parsed.email)) return parsed;
+    } catch {}
+  }
+  return null;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<User | null>(getInitialStoredUser);
+  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const token = api.getToken();
-      if (token && token !== 'null') {
-        try {
-          const profile = await api.getMe();
-          setUser(profile);
-        } catch {
-          // Token invalid or expired
-          api.setToken(null);
-          setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    };
-
-    initAuth();
+    const token = api.getToken();
+    if (token && token !== 'null') {
+      // Non-blocking background sync with backend
+      api.getMe()
+        .then((profile) => {
+          if (profile && profile.id) {
+            setUser(profile);
+            localStorage.setItem('annapurna_current_user', JSON.stringify(profile));
+          }
+        })
+        .catch(() => {
+          // If network error/timeout, keep current stored session active
+        });
+    }
   }, []);
 
   const login = async (email: string, pass: string) => {
-    setLoading(true);
-    try {
-      const res = await api.login(email, pass);
-      setUser(res.user);
-    } finally {
-      setLoading(false);
-    }
+    // Authenticate and immediately set user without triggering full-screen blocking loader
+    const res = await api.login(email, pass);
+    setUser(res.user);
   };
 
   const loginAsDemo = async (role: ActiveRole) => {
-    setLoading(true);
-    try {
-      let email = 'admin@annapurnacollege.org';
-      let pass = 'Admin@123456';
+    let email = 'admin@annapurnacollege.org';
+    let pass = 'Admin@123456';
 
-      if (role === 'TEACHER') {
-        email = 'teacher@annapurnacollege.org';
-        pass = 'Teacher@123456';
-      } else if (role === 'STUDENT') {
-        email = 'student@annapurnacollege.org';
-        pass = 'Student@123456';
-      }
-
-      const res = await api.login(email, pass);
-      setUser(res.user);
-    } finally {
-      setLoading(false);
+    if (role === 'TEACHER') {
+      email = 'teacher@annapurnacollege.org';
+      pass = 'Teacher@123456';
+    } else if (role === 'STUDENT') {
+      email = 'student@annapurnacollege.org';
+      pass = 'Student@123456';
     }
+
+    const res = await api.login(email, pass);
+    setUser(res.user);
   };
 
   const logout = () => {
     api.setToken(null);
+    localStorage.removeItem('annapurna_current_user');
     setUser(null);
   };
 

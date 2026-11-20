@@ -216,7 +216,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
             <div className="space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-white/20 uppercase tracking-wider backdrop-blur-sm">
-                  NCTE Recognized • BSAEU Affiliated
+                  Teacher Education Institution
                 </span>
                 <span className="text-xs text-blue-200 font-mono font-bold">
                   Code: {collegeProfile.college_code}
