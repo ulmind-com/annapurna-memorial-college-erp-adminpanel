@@ -21,8 +21,8 @@ export const VerifyMarksheetView: React.FC = () => {
 
     try {
       const res = await api.verifyMarksheet(hash.trim());
-      if (res.valid) {
-        setResult(res.marksheet);
+      if (res && (res.is_verified || res.valid || res.student_name)) {
+        setResult(res.marksheet || res);
         playSuccess();
       } else {
         setError(true);

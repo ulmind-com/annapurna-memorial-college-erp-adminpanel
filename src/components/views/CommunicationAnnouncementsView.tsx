@@ -14,6 +14,7 @@ import { ClassAnnouncement, Course } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Modal } from '../common/Modal';
+import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatIST } from '../../utils/date';
@@ -22,6 +23,9 @@ export const CommunicationAnnouncementsView: React.FC = () => {
   const { user } = useAuth();
   const [announcements, setAnnouncements] = useState<ClassAnnouncement[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [courseFilter, setCourseFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [title, setTitle] = useState('');
@@ -118,52 +122,99 @@ export const CommunicationAnnouncementsView: React.FC = () => {
         </SoundButton>
       </div>
 
+      {/* Filter Bar */}
+      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4">
+        <select
+          value={courseFilter}
+          onChange={(e) => {
+            setCourseFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="ALL">All Programs ({announcements.length})</option>
+          {courses.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name} ({c.code})
+            </option>
+          ))}
+        </select>
+
+        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+          {announcements.filter(a => courseFilter === 'ALL' || a.course_code === courseFilter).length} Announcements
+        </span>
+      </div>
+
       {/* Announcements Stream */}
       <div className="space-y-4">
-        {announcements.map((ann) => (
-          <div
-            key={ann.id}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3"
-          >
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                  {ann.course_code} - Sem {ann.semester} ({ann.batch})
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
-                    ann.priority === 'URGENT'
-                      ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                      : ann.priority === 'IMPORTANT'
-                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                      : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                  }`}
-                >
-                  {ann.priority}
-                </span>
-              </div>
-
-              <span className="text-[11px] text-slate-400 font-medium">
-                {formatIST(ann.created_at)}
-              </span>
-            </div>
-
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug">
-                {ann.title}
-              </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 leading-relaxed whitespace-pre-line">
-                {ann.message}
-              </p>
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-              <span>Instructor: <b className="text-slate-700 dark:text-slate-300">{ann.faculty_name}</b></span>
-              <span>Target: <b>{ann.subject_code || 'All Subjects'}</b></span>
-            </div>
+        {announcements.filter(a => courseFilter === 'ALL' || a.course_code === courseFilter).length === 0 ? (
+          <div className="p-12 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
+            <Megaphone className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">No Announcements Found</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+              No class announcements have been published for this program yet.
+            </p>
           </div>
-        ))}
+        ) : (
+          announcements
+            .filter(a => courseFilter === 'ALL' || a.course_code === courseFilter)
+            .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+            .map((ann) => (
+              <div
+                key={ann.id}
+                className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3"
+              >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                      {ann.course_code} - Sem {ann.semester} ({ann.batch})
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
+                        ann.priority === 'URGENT'
+                          ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                          : ann.priority === 'IMPORTANT'
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                          : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
+                    >
+                      {ann.priority}
+                    </span>
+                  </div>
+
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {formatIST(ann.created_at)}
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug">
+                    {ann.title}
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 leading-relaxed whitespace-pre-line">
+                    {ann.message}
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+                  <span>Instructor: <b className="text-slate-700 dark:text-slate-300">{ann.faculty_name}</b></span>
+                  <span>Target: <b>{ann.subject_code || 'All Subjects'}</b></span>
+                </div>
+              </div>
+            ))
+        )}
       </div>
+
+      <Pagination
+        totalItems={announcements.filter(a => courseFilter === 'ALL' || a.course_code === courseFilter).length}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setCurrentPage(1);
+        }}
+      />
 
       {/* Modal: New Announcement */}
       <Modal

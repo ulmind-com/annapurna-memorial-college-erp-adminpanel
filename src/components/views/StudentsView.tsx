@@ -21,6 +21,7 @@ import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -29,6 +30,8 @@ export const StudentsView: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState('');
   const [courseFilter, setCourseFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{
@@ -93,8 +96,14 @@ export const StudentsView: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    setCurrentPage(1);
     loadStudents();
   }, [search, courseFilter]);
+
+  const paginatedStudents = students.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   const handleOpenEnrollModal = () => {
     playPop();
@@ -276,7 +285,7 @@ export const StudentsView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {students.map((st) => (
+              {paginatedStudents.map((st) => (
                 <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="py-3.5 px-5">
                     <div className="flex items-center gap-3">
@@ -347,6 +356,19 @@ export const StudentsView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Dynamic Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={students.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[10, 25, 50, 100]}
+        />
       </div>
 
       {/* Modal: Enroll New Trainee */}

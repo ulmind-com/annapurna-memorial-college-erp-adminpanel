@@ -59,7 +59,18 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
       }
     };
     window.addEventListener('annapurna_notice_created', handleNoticeCreated);
-    return () => window.removeEventListener('annapurna_notice_created', handleNoticeCreated);
+
+    const interval = setInterval(async () => {
+      try {
+        const nList = await api.getNotices();
+        setNotices(nList);
+      } catch {}
+    }, 10000);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('annapurna_notice_created', handleNoticeCreated);
+    };
   }, []);
 
   useEffect(() => {

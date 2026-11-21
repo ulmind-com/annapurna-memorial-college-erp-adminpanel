@@ -6,61 +6,65 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { Course } from '../../types';
 
+const DEFAULT_PLANS = [
+  {
+    id: 'LP-101',
+    title: 'Pedagogy of Science: Microscopic Cell Structure & Functions',
+    course: 'B.Ed. Semester 2',
+    unit: 'Unit 3: Plant & Animal Biology',
+    pedagogyType: '5E Constructivist Model (Engage, Explore, Explain, Elaborate, Evaluate)',
+    tlm: 'Compound Microscope, Prepared Onion Peel Slides, Interactive Smartboard Chart',
+    duration: '45 Minutes',
+    status: 'APPROVED',
+    faculty: 'Dr. Debabrata Jana',
+    updatedAt: '18 May 2026 IST',
+  },
+  {
+    id: 'LP-102',
+    title: 'Pedagogy of Mathematics: Pythagorean Theorem & Geometry Proofs',
+    course: 'B.Ed. Semester 2',
+    unit: 'Unit 2: Geometric Logic & Proofs',
+    pedagogyType: 'Inductive-Deductive Method with Manipulatives',
+    tlm: 'Cardboard square tiles, GeoGebra digital geometry app',
+    duration: '45 Minutes',
+    status: 'APPROVED',
+    faculty: 'Prof. Subhasish Mondal',
+    updatedAt: '17 May 2026 IST',
+  },
+  {
+    id: 'LP-103',
+    title: 'Foundational Bengali Pedagogy: Varnamala Phonics & Pronunciation',
+    course: 'D.El.Ed. Semester 1',
+    unit: 'Unit 1: Early Language Acquisition',
+    pedagogyType: 'Activity-based Rhyme & Play-way Methodology',
+    tlm: 'Flash cards, Illustrated Bengali storybook, Puppet figures',
+    duration: '40 Minutes',
+    status: 'SUBMITTED',
+    faculty: 'Dr. Debabrata Jana',
+    updatedAt: '19 May 2026 IST',
+  },
+  {
+    id: 'LP-104',
+    title: 'Inclusive Classroom Pedagogy: Adapting Lessons for Dyslexic Learners',
+    course: 'B.Ed. Semester 4',
+    unit: 'Unit 4: Universal Design for Learning (UDL)',
+    pedagogyType: 'Multi-sensory Structured Language (MSL) Approach',
+    tlm: 'Audio text-to-speech tools, High-contrast dyslexia-friendly fonts worksheets',
+    duration: '50 Minutes',
+    status: 'APPROVED',
+    faculty: 'Prof. Subhasish Mondal',
+    updatedAt: '15 May 2026 IST',
+  },
+];
+
 export const LessonPlansView: React.FC = () => {
   const { playPop, playSuccess } = useSound();
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState('');
-  const [plans, setPlans] = useState([
-    {
-      id: 'LP-101',
-      title: 'Pedagogy of Science: Microscopic Cell Structure & Functions',
-      course: 'B.Ed. Semester 2',
-      unit: 'Unit 3: Plant & Animal Biology',
-      pedagogyType: '5E Constructivist Model (Engage, Explore, Explain, Elaborate, Evaluate)',
-      tlm: 'Compound Microscope, Prepared Onion Peel Slides, Interactive Smartboard Chart',
-      duration: '45 Minutes',
-      status: 'APPROVED',
-      faculty: 'Dr. Debabrata Jana',
-      updatedAt: '18 May 2026 IST',
-    },
-    {
-      id: 'LP-102',
-      title: 'Pedagogy of Mathematics: Pythagorean Theorem & Geometry Proofs',
-      course: 'B.Ed. Semester 2',
-      unit: 'Unit 2: Geometric Logic & Proofs',
-      pedagogyType: 'Inductive-Deductive Method with Manipulatives',
-      tlm: 'Cardboard square tiles, GeoGebra digital geometry app',
-      duration: '45 Minutes',
-      status: 'APPROVED',
-      faculty: 'Prof. Subhasish Mondal',
-      updatedAt: '17 May 2026 IST',
-    },
-    {
-      id: 'LP-103',
-      title: 'Foundational Bengali Pedagogy: Varnamala Phonics & Pronunciation',
-      course: 'D.El.Ed. Semester 1',
-      unit: 'Unit 1: Early Language Acquisition',
-      pedagogyType: 'Activity-based Rhyme & Play-way Methodology',
-      tlm: 'Flash cards, Illustrated Bengali storybook, Puppet figures',
-      duration: '40 Minutes',
-      status: 'SUBMITTED',
-      faculty: 'Dr. Debabrata Jana',
-      updatedAt: '19 May 2026 IST',
-    },
-    {
-      id: 'LP-104',
-      title: 'Inclusive Classroom Pedagogy: Adapting Lessons for Dyslexic Learners',
-      course: 'B.Ed. Semester 4',
-      unit: 'Unit 4: Universal Design for Learning (UDL)',
-      pedagogyType: 'Multi-sensory Structured Language (MSL) Approach',
-      tlm: 'Audio text-to-speech tools, High-contrast dyslexia-friendly fonts worksheets',
-      duration: '50 Minutes',
-      status: 'APPROVED',
-      faculty: 'Prof. Subhasish Mondal',
-      updatedAt: '15 May 2026 IST',
-    },
-  ]);
+  const [plans, setPlans] = useState(() => {
+    return api.getCachedList<any>('amce_lesson_plans', DEFAULT_PLANS);
+  });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -101,7 +105,9 @@ export const LessonPlansView: React.FC = () => {
       updatedAt: 'Just Now IST',
     };
 
-    setPlans([newPlan, ...plans]);
+    const updated = [newPlan, ...plans];
+    setPlans(updated);
+    api.setCachedList('amce_lesson_plans', updated);
     setIsModalOpen(false);
     setNewTitle('');
     setNewUnit('');

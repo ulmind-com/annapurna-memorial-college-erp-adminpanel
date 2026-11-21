@@ -9,6 +9,8 @@ import { Modal } from '../common/Modal';
 export const TimetableScheduleView: React.FC = () => {
   const { playTab, playPop, playSuccess } = useSound();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [facultyList, setFacultyList] = useState<any[]>([]);
+  const [subjectList, setSubjectList] = useState<any[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<string>('BED');
   const [selectedSemester, setSelectedSemester] = useState<number>(1);
   const [selectedDay, setSelectedDay] = useState<'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT'>('MON');
@@ -244,10 +246,16 @@ export const TimetableScheduleView: React.FC = () => {
   });
 
   useEffect(() => {
-    const loadCourses = async () => {
+    const loadData = async () => {
       try {
-        const cList = await api.getCourses();
+        const [cList, fRes, sList] = await Promise.all([
+          api.getCourses(),
+          api.getFaculty(),
+          api.getSubjects(),
+        ]);
         setCourses(cList);
+        setFacultyList(fRes.items || []);
+        setSubjectList(sList || []);
         if (cList.length > 0 && !cList.some((c) => c.code === selectedCourse)) {
           setSelectedCourse(cList[0].code);
         }
@@ -255,7 +263,7 @@ export const TimetableScheduleView: React.FC = () => {
         console.error(e);
       }
     };
-    loadCourses();
+    loadData();
   }, []);
 
   const activeCourseObj = courses.find((c) => c.code === selectedCourse);
@@ -501,11 +509,17 @@ export const TimetableScheduleView: React.FC = () => {
               <input
                 type="text"
                 required
+                list="subject-suggestions"
                 value={newSlot.subject}
                 onChange={(e) => setNewSlot({ ...newSlot, subject: e.target.value })}
                 placeholder="e.g. Data Structures & Algorithms / Pedagogy Practicum"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
               />
+              <datalist id="subject-suggestions">
+                {subjectList.map((s) => (
+                  <option key={s.id || s.code} value={`${s.code} - ${s.title}`} />
+                ))}
+              </datalist>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -553,11 +567,17 @@ export const TimetableScheduleView: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Faculty</label>
                 <input
                   type="text"
+                  list="faculty-suggestions"
                   value={newSlot.faculty}
                   onChange={(e) => setNewSlot({ ...newSlot, faculty: e.target.value })}
                   placeholder="e.g. Prof. Soumen Mukherjee"
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
                 />
+                <datalist id="faculty-suggestions">
+                  {facultyList.map((f) => (
+                    <option key={f.id} value={f.full_name} />
+                  ))}
+                </datalist>
               </div>
             </div>
 

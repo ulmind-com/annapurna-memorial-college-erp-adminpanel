@@ -3,10 +3,13 @@ import { History, Search, Shield, Filter, Clock } from 'lucide-react';
 import { AuditLog } from '../../types';
 import { api } from '../../services/api';
 import { formatIST } from '../../utils/date';
+import { Pagination } from '../common/Pagination';
 
 export const AuditLogsView: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
 
   useEffect(() => {
     const load = async () => {
@@ -25,6 +28,11 @@ export const AuditLogsView: React.FC = () => {
       l.action.toLowerCase().includes(search.toLowerCase()) ||
       (l.user_email && l.user_email.toLowerCase().includes(search.toLowerCase())) ||
       l.entity_type.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const paginatedLogs = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
   );
 
   return (
@@ -69,7 +77,7 @@ export const AuditLogsView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filtered.map((l) => (
+              {paginatedLogs.map((l) => (
                 <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="py-3.5 px-5 text-slate-600 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
                     {formatIST(l.timestamp)}
@@ -97,6 +105,19 @@ export const AuditLogsView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Dynamic Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[10, 15, 30, 50]}
+        />
       </div>
     </div>
   );

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Plus, Pin, Calendar, Tag, AlertTriangle, Send, Edit3, Trash2 } from 'lucide-react';
+import { Bell, Plus, Pin, Calendar, Tag, AlertTriangle, Send, Edit3, Trash2, Search, Filter } from 'lucide-react';
 import { Notice, NoticeCategory, NoticePriority, TargetAudience } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Modal } from '../common/Modal';
+import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatIST } from '../../utils/date';
@@ -13,6 +14,11 @@ export const NoticesView: React.FC = () => {
   const isSuperAdmin = activeRole === 'SUPER_ADMIN';
 
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingNotice, setEditingNotice] = useState<Notice | null>(null);
@@ -113,6 +119,19 @@ export const NoticesView: React.FC = () => {
     }
   };
 
+  const filteredNotices = notices.filter((n) => {
+    const matchesSearch =
+      n.title.toLowerCase().includes(search.toLowerCase()) ||
+      n.content.toLowerCase().includes(search.toLowerCase());
+    const matchesCat = categoryFilter === 'ALL' || n.category === categoryFilter;
+    return matchesSearch && matchesCat;
+  });
+
+  const paginatedNotices = filteredNotices.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
   return (
     <div className="space-y-6 text-slate-900 dark:text-slate-100 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -144,76 +163,139 @@ export const NoticesView: React.FC = () => {
         )}
       </div>
 
+      {/* Filter and Search Bar */}
+      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="relative w-full md:w-80">
+          <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search circulars by title or keyword..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          <select
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="ALL">All Categories ({notices.length})</option>
+            <option value="ACADEMIC">Academic</option>
+            <option value="EXAMINATION">Examination</option>
+            <option value="ADMISSION">Admission</option>
+            <option value="EVENT">Event</option>
+            <option value="ADMINISTRATIVE">Administrative</option>
+            <option value="EMERGENCY">Emergency</option>
+          </select>
+
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 px-2">
+            {filteredNotices.length} Circulars
+          </span>
+        </div>
+      </div>
+
       {/* Notices List */}
       <div className="space-y-4">
-        {notices.map((n) => (
-          <div
-            key={n.id}
-            className={`p-6 rounded-3xl bg-white dark:bg-slate-900 border transition-all shadow-sm ${
-              n.is_pinned
-                ? 'border-blue-400 dark:border-blue-700 bg-blue-50/20 dark:bg-blue-950/20 ring-1 ring-blue-500/30'
-                : 'border-slate-200 dark:border-slate-800'
-            }`}
-          >
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                {n.is_pinned && <Pin className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />}
-                <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug">
-                  {n.title}
-                </h3>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span
-                  className={`px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold uppercase border ${
-                    n.priority === 'URGENT'
-                      ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950 dark:text-rose-400 dark:border-rose-800'
-                      : n.priority === 'HIGH'
-                      ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800'
-                      : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-                  }`}
-                >
-                  {n.priority}
-                </span>
-
-                <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 uppercase">
-                  Audience: {n.target_audience}
-                </span>
-
-                {isSuperAdmin && (
-                  <div className="flex items-center gap-1 ml-2">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit(n)}
-                      title="Edit Notice"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteNotice(n)}
-                      title="Delete Notice"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-600 dark:text-slate-300 mt-3 leading-relaxed whitespace-pre-line">
-              {n.content}
+        {filteredNotices.length === 0 ? (
+          <div className="p-12 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
+            <Bell className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">No Circulars Found</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+              {search || categoryFilter !== 'ALL'
+                ? 'No notices match your current filters. Try resetting the search or category.'
+                : 'No official circulars have been published yet.'}
             </p>
-
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400">
-              <span>Published by: <b className="text-slate-700 dark:text-slate-300">{n.published_by_name}</b></span>
-              <span>{formatIST(n.created_at)}</span>
-            </div>
           </div>
-        ))}
+        ) : (
+          paginatedNotices.map((n) => (
+            <div
+              key={n.id}
+              className={`p-6 rounded-3xl bg-white dark:bg-slate-900 border transition-all shadow-sm ${
+                n.is_pinned
+                  ? 'border-blue-400 dark:border-blue-700 bg-blue-50/20 dark:bg-blue-950/20 ring-1 ring-blue-500/30'
+                  : 'border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {n.is_pinned && <Pin className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />}
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug">
+                    {n.title}
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold uppercase border ${
+                      n.priority === 'URGENT'
+                        ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950 dark:text-rose-400 dark:border-rose-800'
+                        : n.priority === 'HIGH'
+                        ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800'
+                        : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                    }`}
+                  >
+                    {n.priority}
+                  </span>
+
+                  <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 uppercase">
+                    Audience: {n.target_audience}
+                  </span>
+
+                  {isSuperAdmin && (
+                    <div className="flex items-center gap-1 ml-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(n)}
+                        title="Edit Notice"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteNotice(n)}
+                        title="Delete Notice"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-3 leading-relaxed whitespace-pre-line">
+                {n.content}
+              </p>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                <span>Published by: <b className="text-slate-700 dark:text-slate-300">{n.published_by_name}</b></span>
+                <span>{formatIST(n.created_at)}</span>
+              </div>
+            </div>
+          ))
+        )}
       </div>
+
+      <Pagination
+        totalItems={filteredNotices.length}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setCurrentPage(1);
+        }}
+      />
 
       {/* Publish Notice Modal */}
       <Modal

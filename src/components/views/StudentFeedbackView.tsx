@@ -15,6 +15,7 @@ import { StudentFeedback, Faculty, Subject } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Modal } from '../common/Modal';
+import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatIST } from '../../utils/date';
@@ -29,6 +30,8 @@ export const StudentFeedbackView: React.FC = () => {
   const [subjectList, setSubjectList] = useState<Subject[]>([]);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(6);
 
   // Submit modal (Student)
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -160,6 +163,11 @@ export const StudentFeedbackView: React.FC = () => {
     return f.category === activeCategory;
   });
 
+  const paginatedFeedbacks = filteredFeedbacks.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
   const avgRating =
     feedbacks.length > 0
       ? (feedbacks.reduce((acc, curr) => acc + curr.rating, 0) / feedbacks.length).toFixed(1)
@@ -269,7 +277,7 @@ export const StudentFeedbackView: React.FC = () => {
             No feedback entries found matching the filter.
           </div>
         ) : (
-          filteredFeedbacks.map((fb) => (
+          paginatedFeedbacks.map((fb) => (
             <div
               key={fb.id}
               className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4"
@@ -336,6 +344,21 @@ export const StudentFeedbackView: React.FC = () => {
             </div>
           ))
         )}
+      </div>
+
+      {/* Dynamic Pagination Controls */}
+      <div className="rounded-3xl overflow-hidden shadow-xs border border-slate-200 dark:border-slate-800">
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredFeedbacks.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[4, 6, 12, 24]}
+        />
       </div>
 
       {/* Modal: Submit Feedback (Student) */}

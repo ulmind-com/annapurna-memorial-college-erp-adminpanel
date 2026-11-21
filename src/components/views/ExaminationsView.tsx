@@ -31,6 +31,7 @@ import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 import collegeLogo from '../../assets/logo.png';
 import { useAuth } from '../../context/AuthContext';
@@ -51,6 +52,8 @@ export const ExaminationsView: React.FC = () => {
   const [marksheets, setMarksheets] = useState<Marksheet[]>([]);
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [search, setSearch] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
   const [selectedMarksheet, setSelectedMarksheet] = useState<Marksheet | null>(null);
 
   // Edit Marksheet Modal
@@ -625,10 +628,21 @@ export const ExaminationsView: React.FC = () => {
   const activeCourseObj = courses.find((c) => c.code === selectedCourse);
   const totalSemesters = activeCourseObj?.total_semesters || 4;
 
-  const enrolledCourseStudents = students.filter((s) => {
-    const codeMatch = s.course_code?.trim().toUpperCase() === selectedCourse?.trim().toUpperCase();
-    const nameMatch = activeCourseObj?.name && s.course_name?.toLowerCase().includes(activeCourseObj.name.toLowerCase());
-    return Boolean(codeMatch || nameMatch);
+  const enrolledCourseStudents = students.filter((s: any) => {
+    const studentCourseCode = (s.course_code || s.course || '').trim().toUpperCase();
+    const targetCode = (selectedCourse || '').trim().toUpperCase();
+    if (studentCourseCode && targetCode && (studentCourseCode === targetCode || studentCourseCode.replace(/[^A-Z0-9]/g, '') === targetCode.replace(/[^A-Z0-9]/g, ''))) {
+      return true;
+    }
+    const studentCourseName = (s.course_name || s.course || '').trim().toLowerCase();
+    const targetName = (activeCourseObj?.name || '').trim().toLowerCase();
+    if (targetName && studentCourseName && (studentCourseName.includes(targetName) || targetName.includes(studentCourseName))) {
+      return true;
+    }
+    if (s.course_id && activeCourseObj?.id && String(s.course_id) === String(activeCourseObj.id)) {
+      return true;
+    }
+    return false;
   });
 
   const filteredStudents = enrolledCourseStudents.filter((s) => {
@@ -640,6 +654,21 @@ export const ExaminationsView: React.FC = () => {
       s.email?.toLowerCase().includes(q)
     );
   });
+
+  const displayedStudents = filteredStudents.filter((st) => {
+    if (activeTab === 'ALL') return true;
+    const studentMs = marksheets.find(
+      (m) =>
+        (m.student_id === st.id || m.roll_number === st.roll_number) &&
+        Number(m.semester) === Number(selectedSemester)
+    );
+    return studentMs && studentMs.status === activeTab;
+  });
+
+  const paginatedStudents = displayedStudents.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   // Current semester marksheets for the selected course
   const currentSemesterMarksheets = marksheets.filter((m) => {
@@ -849,6 +878,7 @@ export const ExaminationsView: React.FC = () => {
               onClick={() => {
                 playClick();
                 setActiveTab(stage.id);
+                setCurrentPage(1);
               }}
               className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
                 activeTab === stage.id
@@ -886,6 +916,7 @@ export const ExaminationsView: React.FC = () => {
               onClick={() => {
                 playClick();
                 setActiveTab(t.id);
+                setCurrentPage(1);
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 activeTab === t.id
@@ -904,7 +935,10 @@ export const ExaminationsView: React.FC = () => {
             type="text"
             placeholder="Search student or roll..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-9 pr-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
           />
         </div>
@@ -927,7 +961,7 @@ export const ExaminationsView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredStudents.length === 0 ? (
+              {displayedStudents.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -942,7 +976,7 @@ export const ExaminationsView: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map((st) => {
+                paginatedStudents.map((st) => {
                   const studentMs = marksheets.find(
                     (m) =>
                       (m.student_id === st.id || m.roll_number === st.roll_number) &&
@@ -1128,6 +1162,17 @@ export const ExaminationsView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      <Pagination
+        totalItems={displayedStudents.length}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setCurrentPage(1);
+        }}
+      />
 
       {/* Modal: Generate / Enter Semester Marks */}
       {isGenerateModalOpen && generatingStudent && (

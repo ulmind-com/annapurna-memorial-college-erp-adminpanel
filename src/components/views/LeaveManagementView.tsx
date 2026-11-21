@@ -18,6 +18,7 @@ import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatIST } from '../../utils/date';
@@ -32,6 +33,8 @@ export const LeaveManagementView: React.FC = () => {
   const [matchedStudent, setMatchedStudent] = useState<Student | null>(null);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Student apply leave modal
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
@@ -172,6 +175,11 @@ export const LeaveManagementView: React.FC = () => {
     return l.status === activeFilter;
   });
 
+  const paginatedLeaves = filteredLeaves.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
   return (
     <div className="space-y-6 text-slate-900 dark:text-slate-100 animate-in fade-in duration-300">
       {/* Header Desk */}
@@ -264,7 +272,7 @@ export const LeaveManagementView: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredLeaves.map((l) => (
+                paginatedLeaves.map((l) => (
                   <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="py-3.5 px-4">
                       <div className="font-extrabold text-slate-900 dark:text-white">{l.student_name}</div>
@@ -338,6 +346,19 @@ export const LeaveManagementView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Dynamic Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredLeaves.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[5, 10, 25, 50]}
+        />
       </div>
 
       {/* Modal: Apply for Leave (Student) */}

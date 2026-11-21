@@ -22,6 +22,7 @@ import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -36,6 +37,8 @@ export const AcademicsView: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [activeTab, setActiveTab] = useState<'CURRICULUM' | 'STUDENTS'>('CURRICULUM');
   const [studentSearch, setStudentSearch] = useState<string>('');
+  const [studentPage, setStudentPage] = useState<number>(1);
+  const [studentPageSize, setStudentPageSize] = useState<number>(10);
 
   // Course Modals
   const [isAddCourseModal, setIsAddCourseModal] = useState(false);
@@ -224,11 +227,27 @@ export const AcademicsView: React.FC = () => {
 
   const activeCourseObj = courses.find((c) => c.code === selectedCourse);
 
-  const enrolledStudents = students.filter((s) => {
-    const codeMatch = s.course_code?.trim().toUpperCase() === selectedCourse?.trim().toUpperCase();
-    const nameMatch = activeCourseObj?.name && s.course_name?.toLowerCase().includes(activeCourseObj.name.toLowerCase());
-    return Boolean(codeMatch || nameMatch);
-  });
+  const isStudentInCourse = (s: any, c?: Course) => {
+    if (!c) return false;
+    const studentCourseCode = (s.course_code || s.course || '').trim().toUpperCase();
+    const targetCode = (c.code || '').trim().toUpperCase();
+    if (studentCourseCode && targetCode) {
+      if (studentCourseCode === targetCode) return true;
+      if (studentCourseCode.replace(/[^A-Z0-9]/g, '') === targetCode.replace(/[^A-Z0-9]/g, '')) return true;
+    }
+    const studentCourseName = (s.course_name || s.course || '').trim().toLowerCase();
+    const targetName = (c.name || '').trim().toLowerCase();
+    if (targetName && studentCourseName) {
+      if (studentCourseName === targetName) return true;
+      if (studentCourseName.includes(targetName) || targetName.includes(studentCourseName)) return true;
+    }
+    if (s.course_id && c.id && String(s.course_id) === String(c.id)) {
+      return true;
+    }
+    return false;
+  };
+
+  const enrolledStudents = activeCourseObj ? students.filter((s) => isStudentInCourse(s, activeCourseObj)) : [];
 
   const filteredEnrolledStudents = enrolledStudents.filter((s) => {
     if (!studentSearch.trim()) return true;
@@ -240,6 +259,11 @@ export const AcademicsView: React.FC = () => {
       (s.phone && s.phone.includes(q))
     );
   });
+
+  const paginatedEnrolledStudents = filteredEnrolledStudents.slice(
+    (studentPage - 1) * studentPageSize,
+    studentPage * studentPageSize
+  );
 
   return (
     <div className="space-y-6 text-slate-900 dark:text-slate-100 animate-in fade-in duration-300">
@@ -280,11 +304,7 @@ export const AcademicsView: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {courses.map((c) => {
           const isSelected = selectedCourse === c.code;
-          const courseTraineeCount = students.filter((s) => {
-            const codeMatch = s.course_code?.trim().toUpperCase() === c.code?.trim().toUpperCase();
-            const nameMatch = c.name && s.course_name?.toLowerCase().includes(c.name.toLowerCase());
-            return Boolean(codeMatch || nameMatch);
-          }).length;
+          const courseTraineeCount = students.filter((s) => isStudentInCourse(s, c)).length;
 
           return (
             <div
@@ -522,7 +542,10 @@ export const AcademicsView: React.FC = () => {
                 <input
                   type="text"
                   value={studentSearch}
-                  onChange={(e) => setStudentSearch(e.target.value)}
+                  onChange={(e) => {
+                    setStudentSearch(e.target.value);
+                    setStudentPage(1);
+                  }}
                   placeholder="Search enrolled trainees..."
                   className="w-full pl-9 pr-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -563,7 +586,7 @@ export const AcademicsView: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredEnrolledStudents.map((st) => (
+                  paginatedEnrolledStudents.map((st) => (
                     <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
@@ -620,6 +643,17 @@ export const AcademicsView: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            totalItems={filteredEnrolledStudents.length}
+            currentPage={studentPage}
+            pageSize={studentPageSize}
+            onPageChange={setStudentPage}
+            onPageSizeChange={(s) => {
+              setStudentPageSize(s);
+              setStudentPage(1);
+            }}
+          />
         </div>
       )}
 

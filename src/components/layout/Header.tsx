@@ -71,6 +71,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch, onNavigate }) => {
       } catch {}
     };
     loadNotices();
+    const interval = setInterval(loadNotices, 10000);
 
     const handleNoticeCreated = (e: any) => {
       if (e.detail) {
@@ -78,7 +79,10 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch, onNavigate }) => {
       }
     };
     window.addEventListener('annapurna_notice_created', handleNoticeCreated);
-    return () => window.removeEventListener('annapurna_notice_created', handleNoticeCreated);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('annapurna_notice_created', handleNoticeCreated);
+    };
   }, []);
 
   const unreadCount = notices.filter((n) => !readNoticeIds.includes(n.id)).length;

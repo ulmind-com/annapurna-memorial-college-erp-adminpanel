@@ -3,6 +3,7 @@ import { CalendarCheck, AlertTriangle, CheckCircle, XCircle, Clock, Users, Shiel
 import { api } from '../../services/api';
 import { Student, Course, Subject } from '../../types';
 import { SoundButton } from '../common/SoundButton';
+import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -19,6 +20,10 @@ export const AttendanceView: React.FC = () => {
   const [attendanceMap, setAttendanceMap] = useState<Record<string, 'PRESENT' | 'ABSENT'>>({});
   const [analytics, setAnalytics] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'TAKE' | 'ANALYTICS'>('TAKE');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const [analyticsPage, setAnalyticsPage] = useState(1);
+  const [analyticsPageSize, setAnalyticsPageSize] = useState(15);
   const { playClick, playSuccess, playAlert } = useSound();
 
   // Load available courses
@@ -335,46 +340,59 @@ export const AttendanceView: React.FC = () => {
             </div>
 
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {students.map((st) => {
-                const isPresent = attendanceMap[st.id] === 'PRESENT';
-                return (
-                  <div
-                    key={st.id}
-                    className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={st.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${st.roll_number}`}
-                        alt={st.full_name}
-                        className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 object-cover shadow-2xs"
-                      />
-                      <div>
-                        <div className="font-extrabold text-slate-900 dark:text-white text-xs">{st.full_name}</div>
-                        <div className="text-[11px] font-mono text-blue-600 dark:text-blue-400">{st.roll_number}</div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleStudentStatus(st.id)}
-                      className={`px-3 py-1 rounded-xl text-xs font-black transition-all ${
-                        isPresent
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                          : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                      }`}
+              {students
+                .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                .map((st) => {
+                  const isPresent = attendanceMap[st.id] === 'PRESENT';
+                  return (
+                    <div
+                      key={st.id}
+                      className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
                     >
-                      {isPresent ? 'PRESENT' : 'ABSENT'}
-                    </button>
-                  </div>
-                );
-              })}
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={st.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${st.roll_number}`}
+                          alt={st.full_name}
+                          className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 object-cover shadow-2xs"
+                        />
+                        <div>
+                          <div className="font-extrabold text-slate-900 dark:text-white text-xs">{st.full_name}</div>
+                          <div className="text-[11px] font-mono text-blue-600 dark:text-blue-400">{st.roll_number}</div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleStudentStatus(st.id)}
+                        className={`px-3 py-1 rounded-xl text-xs font-black transition-all ${
+                          isPresent
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                            : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                        }`}
+                      >
+                        {isPresent ? 'PRESENT' : 'ABSENT'}
+                      </button>
+                    </div>
+                  );
+                })}
             </div>
           </div>
+
+          <Pagination
+            totalItems={students.length}
+            currentPage={currentPage}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(s) => {
+              setPageSize(s);
+              setCurrentPage(1);
+            }}
+          />
         </div>
       ) : (
         /* Analytics View */
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-          <h3 className="text-sm font-extrabold text-slate-900 dark:text-white mb-4">
+        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+          <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
             Cohort NCTE 75% Compliance Radar
           </h3>
 
@@ -391,33 +409,46 @@ export const AttendanceView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {analytics.map((an) => (
-                  <tr key={an.student_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{an.student_name}</td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-blue-600">{an.roll_number}</td>
-                    <td className="py-3.5 px-4 text-center">{an.total_classes}</td>
-                    <td className="py-3.5 px-4 text-center font-bold">{an.classes_attended}</td>
-                    <td className="py-3.5 px-4 text-center font-black">
-                      <span className={an.percentage < 75 ? 'text-rose-600' : 'text-emerald-600'}>
-                        {an.percentage}%
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          an.percentage < 75
-                            ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                            : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                        }`}
-                      >
-                        {an.percentage < 75 ? 'Short Attendance' : 'Compliant'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {analytics
+                  .slice((analyticsPage - 1) * analyticsPageSize, analyticsPage * analyticsPageSize)
+                  .map((an) => (
+                    <tr key={an.student_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{an.student_name}</td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-blue-600">{an.roll_number}</td>
+                      <td className="py-3.5 px-4 text-center">{an.total_classes}</td>
+                      <td className="py-3.5 px-4 text-center font-bold">{an.classes_attended}</td>
+                      <td className="py-3.5 px-4 text-center font-black">
+                        <span className={an.percentage < 75 ? 'text-rose-600' : 'text-emerald-600'}>
+                          {an.percentage}%
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            an.percentage < 75
+                              ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                              : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                          }`}
+                        >
+                          {an.percentage < 75 ? 'Short Attendance' : 'Compliant'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            totalItems={analytics.length}
+            currentPage={analyticsPage}
+            pageSize={analyticsPageSize}
+            onPageChange={setAnalyticsPage}
+            onPageSizeChange={(s) => {
+              setAnalyticsPageSize(s);
+              setAnalyticsPage(1);
+            }}
+          />
         </div>
       )}
     </div>

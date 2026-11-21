@@ -5,12 +5,15 @@ import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
+import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 
 export const FacultyView: React.FC = () => {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(9);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
   const [createdCredentials, setCreatedCredentials] = useState<{
@@ -158,6 +161,11 @@ export const FacultyView: React.FC = () => {
       f.employee_id.toLowerCase().includes(search.toLowerCase())
   );
 
+  const paginatedFaculty = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -199,7 +207,7 @@ export const FacultyView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filtered.map((f) => (
+        {paginatedFaculty.map((f) => (
           <div
             key={f.id}
             className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 transition-all shadow-sm flex flex-col justify-between space-y-4"
@@ -256,6 +264,21 @@ export const FacultyView: React.FC = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Dynamic Pagination Controls */}
+      <div className="rounded-3xl overflow-hidden shadow-xs border border-slate-200 dark:border-slate-800">
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+          pageSizeOptions={[6, 9, 18, 36]}
+        />
       </div>
 
       {/* Modal: Add Faculty */}

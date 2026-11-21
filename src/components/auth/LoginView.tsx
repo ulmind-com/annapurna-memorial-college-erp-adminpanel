@@ -30,6 +30,31 @@ export const LoginView: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // High-End Security: Brute-Force Rate Limiting & Cooldown Timer
+  const [failedCount, setFailedCount] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('amce_login_fails');
+      return saved ? parseInt(saved, 10) : 0;
+    }
+    return 0;
+  });
+  const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
+
+  // Active countdown timer when locked out
+  React.useEffect(() => {
+    if (lockoutRemaining <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutRemaining]);
+
   // Forgot Password Modal state
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
@@ -68,7 +93,16 @@ export const LoginView: React.FC = () => {
     e.preventDefault();
     setErrorMessage(null);
 
-    if (!email.trim() || !password.trim()) {
+    if (lockoutRemaining > 0) {
+      playAlert();
+      setErrorMessage(`Security Lockout Active: Please wait ${lockoutRemaining}s before attempting sign in.`);
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
       playAlert();
       setErrorMessage('Please enter both your registered email address and security password.');
       return;
@@ -78,7 +112,7 @@ export const LoginView: React.FC = () => {
     playPop();
 
     try {
-      await login(email.trim(), password.trim());
+      await login(cleanEmail, cleanPassword);
 
       // Read current logged-in user to verify role match
       const savedUserStr = localStorage.getItem('annapurna_current_user');
@@ -115,12 +149,26 @@ export const LoginView: React.FC = () => {
         }
       }
 
+      // Reset brute-force counter upon successful authentication
+      setFailedCount(0);
+      sessionStorage.removeItem('amce_login_fails');
+
       playSuccess();
     } catch (err: any) {
       playAlert();
-      setErrorMessage(
-        err.message || 'Invalid institutional credentials. Please verify your email and password.'
-      );
+      const newFails = failedCount + 1;
+      setFailedCount(newFails);
+      sessionStorage.setItem('amce_login_fails', String(newFails));
+
+      if (newFails >= 5) {
+        setLockoutRemaining(60);
+        setErrorMessage('Security Shield: 5 consecutive failed login attempts detected. Form locked for 60 seconds.');
+      } else {
+        const remainingAttempts = 5 - newFails;
+        setErrorMessage(
+          err.message || `Invalid institutional credentials. (${remainingAttempts} attempts remaining before temporary security lock)`
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -409,13 +457,18 @@ export const LoginView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Login Button */}
+              {/* Login Button with Lockout Protection */}
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || lockoutRemaining > 0}
                 className="w-full py-3.5 px-6 rounded-2xl bg-[#4361ee] hover:bg-[#3451db] text-white font-bold text-sm shadow-lg shadow-blue-500/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
               >
-                {isSubmitting ? (
+                {lockoutRemaining > 0 ? (
+                  <span className="flex items-center gap-1.5 text-amber-200">
+                    <Lock className="w-4 h-4" />
+                    Security Lockout ({lockoutRemaining}s)
+                  </span>
+                ) : isSubmitting ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   currentMeta.buttonLabel
@@ -425,8 +478,14 @@ export const LoginView: React.FC = () => {
           </div>
 
           {/* Bottom Security / Trust Footer */}
-          <div className="pt-6 border-t border-slate-100 flex items-center justify-center text-xs text-slate-400 font-medium">
-            <span>Secure 256-Bit SSL Institutional Gate</span>
+          <div className="pt-6 border-t border-slate-100 flex flex-col items-center justify-center gap-1 text-xs text-slate-400 font-medium text-center">
+            <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-[11px]">
+              <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              <span>256-Bit SSL Encrypted • Brute-Force Shield Active</span>
+            </div>
+            <span className="text-[10px] text-slate-400">
+              Annapurna Memorial College of Education • Tamper-proof JWT Authentication
+            </span>
           </div>
         </div>
       </div>
