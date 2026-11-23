@@ -137,31 +137,16 @@ export const LoginView: React.FC = () => {
           const loggedUser = JSON.parse(savedUserStr);
           const uRole = loggedUser.role;
 
-          let roleMatches = false;
-          if (selectedRole === 'SUPER_ADMIN' && (uRole === 'SUPER_ADMIN' || uRole === 'ADMIN')) {
-            roleMatches = true;
-          } else if (selectedRole === 'TEACHER' && (uRole === 'FACULTY' || uRole === 'TEACHER')) {
-            roleMatches = true;
-          } else if (selectedRole === 'STUDENT' && uRole === 'STUDENT') {
-            roleMatches = true;
+          // Seamlessly adopt the user's authentic role without blocking or kicking them out
+          if (uRole === 'STUDENT') {
+            setSelectedRole('STUDENT');
+          } else if (uRole === 'FACULTY' || uRole === 'TEACHER') {
+            setSelectedRole('TEACHER');
+          } else if (uRole === 'SUPER_ADMIN' || uRole === 'ADMIN') {
+            setSelectedRole('SUPER_ADMIN');
           }
-
-          if (!roleMatches) {
-            logout();
-            const correctTab =
-              uRole === 'SUPER_ADMIN' || uRole === 'ADMIN'
-                ? 'Super Admin'
-                : uRole === 'FACULTY' || uRole === 'TEACHER'
-                ? 'Teacher'
-                : 'Student';
-            throw new Error(
-              `Role Mismatch: This account is registered as ${correctTab}. Please select the "${correctTab}" tab above to sign in.`
-            );
-          }
-        } catch (parseErr: any) {
-          if (parseErr.message && parseErr.message.includes('Role Mismatch')) {
-            throw parseErr;
-          }
+        } catch {
+          // Ignore parsing glitch
         }
       }
 
