@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Lock,
   Mail,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth, ActiveRole } from '../../context/AuthContext';
 import { useSound } from '../../context/SoundContext';
@@ -86,6 +87,21 @@ export const LoginView: React.FC = () => {
   const handleRoleSelect = (role: ActiveRole) => {
     playHaptic();
     setSelectedRole(role);
+    setErrorMessage(null);
+  };
+
+  const handleAutoFill = (role: ActiveRole = selectedRole) => {
+    playPop();
+    if (role === 'SUPER_ADMIN') {
+      setEmail('admin@annapurnacollege.edu.in');
+      setPassword('Admin@Amce2024#');
+    } else if (role === 'TEACHER') {
+      setEmail('faculty.soumen@annapurnacollege.edu.in');
+      setPassword('Teacher@Amce2024#');
+    } else {
+      setEmail('student@annapurnacollege.org');
+      setPassword('Student@Amce2024#');
+    }
     setErrorMessage(null);
   };
 
@@ -370,6 +386,27 @@ export const LoginView: React.FC = () => {
               >
                 <GraduationCap className="w-3.5 h-3.5" />
                 <span>Student</span>
+              </button>
+            </div>
+
+            {/* Quick-Fill Active Role Credentials Chip */}
+            <div className="mt-3 flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50/80 border border-blue-200/60 shadow-2xs">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Sparkles className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                <span className="text-[11px] font-medium text-slate-700 truncate">
+                  {selectedRole === 'SUPER_ADMIN'
+                    ? 'admin@annapurnacollege.edu.in'
+                    : selectedRole === 'TEACHER'
+                    ? 'faculty.soumen@annapurnacollege.edu.in'
+                    : 'student@annapurnacollege.org'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleAutoFill(selectedRole)}
+                className="ml-2 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] transition-all flex-shrink-0 shadow-xs cursor-pointer active:scale-95"
+              >
+                Auto-fill
               </button>
             </div>
 

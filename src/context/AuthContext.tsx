@@ -60,15 +60,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginAsDemo = async (role: ActiveRole) => {
-    let email = 'admin@annapurnacollege.org';
-    let pass = 'Admin@123456';
+    let email = 'admin@annapurnacollege.edu.in';
+    let pass = 'Admin@Amce2024#';
 
     if (role === 'TEACHER') {
-      email = 'teacher@annapurnacollege.org';
-      pass = 'Teacher@123456';
+      email = 'faculty.soumen@annapurnacollege.edu.in';
+      pass = 'Teacher@Amce2024#';
     } else if (role === 'STUDENT') {
       email = 'student@annapurnacollege.org';
-      pass = 'Student@123456';
+      pass = 'Student@Amce2024#';
     }
 
     const res = await api.login(email, pass);
