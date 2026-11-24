@@ -110,7 +110,7 @@ export const AIQuizBuilderView: React.FC = () => {
             icon={<Play className="w-4 h-4" />}
             soundType="success"
           >
-            Publish to Trainees
+            Publish to Students
           </SoundButton>
         </div>
       </div>

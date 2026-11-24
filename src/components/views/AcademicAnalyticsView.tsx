@@ -200,7 +200,7 @@ export const AcademicAnalyticsView: React.FC = () => {
         </div>
 
         <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-          <div className="text-[10px] uppercase font-bold text-slate-400">Trainee Retention</div>
+          <div className="text-[10px] uppercase font-bold text-slate-400">Student Retention</div>
           <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">100%</div>
           <div className="text-[11px] text-slate-400 mt-0.5">Zero Academic Dropouts</div>
         </div>
@@ -235,7 +235,7 @@ export const AcademicAnalyticsView: React.FC = () => {
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
           <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-              Trainee SGPA Letter Grade Distribution
+              Student SGPA Letter Grade Distribution
             </h3>
             <p className="text-xs text-slate-500">BSAEU University grading classification</p>
           </div>
@@ -269,7 +269,7 @@ export const AcademicAnalyticsView: React.FC = () => {
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }} />
                   {g.grade}
                 </span>
-                <span className="font-extrabold">{g.count} Trainees</span>
+                <span className="font-extrabold">{g.count} Students</span>
               </div>
             ))}
           </div>

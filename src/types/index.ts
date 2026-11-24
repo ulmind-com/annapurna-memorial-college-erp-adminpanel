@@ -72,6 +72,9 @@ export interface Course {
   max_intake: number;
   description?: string;
   is_active: boolean;
+  enrolled_count?: number;
+  remaining_seats?: number;
+  semester_counts?: Record<string, number>;
 }
 
 export interface Subject {
@@ -338,6 +341,7 @@ export interface StudyMaterial {
   file_size_bytes: number;
   tags: string[];
   category?: string;
+  material_date?: string;
   uploaded_by_id?: string;
   uploaded_by_name: string;
   downloads_count: number;

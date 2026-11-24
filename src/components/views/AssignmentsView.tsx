@@ -23,6 +23,7 @@ import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { api, FacultyClass } from '../../services/api';
+import { PickerInput, formatDueDateTime } from '../common/PickerInput';
 import { Course } from '../../types';
 
 interface AssignmentItem {
@@ -320,7 +321,7 @@ export const AssignmentsView: React.FC = () => {
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5 mt-1">
             <ClipboardList className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             <span>
-              {isStudent ? 'My Practicum & Academic Assignments' : 'Trainee Practicum & Assignments Tracker'}
+              {isStudent ? 'My Practicum & Academic Assignments' : 'Student Practicum & Assignments Tracker'}
             </span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -330,8 +331,8 @@ export const AssignmentsView: React.FC = () => {
           </p>
         </div>
 
-        {/* ONLY Teachers and Super Admin can Assign New Tasks! Students NEVER see this button! */}
-        {!isStudent && (
+        {/* Only teachers create assignments; Super Admin monitors, students submit */}
+        {isTeacher && (
           <SoundButton
             onClick={() => {
               playPop();
@@ -340,17 +341,24 @@ export const AssignmentsView: React.FC = () => {
             icon={<Plus className="w-4 h-4" />}
             soundType="pop"
             variant="primary"
+            disabled={myClasses.length === 0}
           >
-            Assign New Task
+            New Assignment
           </SoundButton>
         )}
       </div>
 
       {/* Metrics Row (for Teachers / Admins) */}
+      {isTeacher && !loading && myClasses.length === 0 && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-xs font-bold text-amber-700 dark:text-amber-300">
+          No subjects are assigned to you yet, so you can't create assignments. Ask the Super Admin to assign subjects in Academic Structure.
+        </div>
+      )}
+
       {!isStudent && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Total Enrolled Trainees</div>
+            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Total Enrolled Students</div>
             <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">{totalAssignedSum}</div>
             <div className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">Across Active Cohorts</div>
           </div>
@@ -427,7 +435,7 @@ export const AssignmentsView: React.FC = () => {
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
               {isStudent
                 ? 'There are no active practicum tasks or assignments assigned to your course cohort at this moment.'
-                : 'No coursework has been created yet. Click "Assign New Task" above to publish an assignment.'}
+                : 'No assignments yet.'}
             </p>
           </div>
         ) : (
@@ -539,7 +547,7 @@ export const AssignmentsView: React.FC = () => {
                     <div className="flex items-center justify-between text-xs font-bold">
                       <span className="text-slate-600 dark:text-slate-400">Cohort Submission Progress</span>
                       <span className="text-blue-600 dark:text-blue-400">
-                        {submissionPercentage}% ({item.submittedCount}/{item.totalAssigned} Trainees)
+                        {submissionPercentage}% ({item.submittedCount}/{item.totalAssigned} Students)
                       </span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
@@ -606,7 +614,7 @@ export const AssignmentsView: React.FC = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Assign New Trainee Task"
+        title="Assign New Student Task"
         subtitle="Publish homework, practicum file, or assessment rubric"
         maxWidth="lg"
       >
@@ -689,32 +697,20 @@ export const AssignmentsView: React.FC = () => {
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                <span>Due Date (Calendar Picker) *</span>
+                <span>Due Date *</span>
               </label>
               <div className="relative">
-                <input
-                  type="date"
-                  required
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-bold [color-scheme:light] dark:[color-scheme:dark] focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+<PickerInput type="date" required value={dueDate} min={new Date().toISOString().slice(0, 10)} onChange={setDueDate} />
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                <span>Due Time (Clock Picker) *</span>
+                <span>Due Time *</span>
               </label>
               <div className="relative">
-                <input
-                  type="time"
-                  required
-                  value={dueTime}
-                  onChange={(e) => setDueTime(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-bold [color-scheme:light] dark:[color-scheme:dark] focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+<PickerInput type="time" required value={dueTime} onChange={setDueTime} />
               </div>
             </div>
           </div>

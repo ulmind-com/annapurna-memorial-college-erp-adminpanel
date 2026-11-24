@@ -125,7 +125,7 @@ export const AttendanceView: React.FC = () => {
         <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Trainee Overall Attendance</span>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student Overall Attendance</span>
               <div className="text-4xl font-black text-emerald-600 dark:text-emerald-400">88.3%</div>
               <p className="text-xs text-slate-500">
                 You have attended <b className="text-slate-900 dark:text-white">53 out of 60</b> instructional classes this semester.
@@ -330,7 +330,7 @@ export const AttendanceView: React.FC = () => {
             </div>
           </div>
 
-          {/* Trainee Attendance List */}
+          {/* Student Attendance List */}
           <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
             <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
               <span>{presentCount} Present • {totalCount - presentCount} Absent ({attendancePct}% Attendance)</span>
@@ -400,7 +400,7 @@ export const AttendanceView: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800 text-slate-500 uppercase text-[10px] font-extrabold border-b border-slate-200 dark:border-slate-700">
-                  <th className="py-3 px-4">Trainee</th>
+                  <th className="py-3 px-4">Student</th>
                   <th className="py-3 px-4">Roll</th>
                   <th className="py-3 px-4 text-center">Classes</th>
                   <th className="py-3 px-4 text-center">Attended</th>

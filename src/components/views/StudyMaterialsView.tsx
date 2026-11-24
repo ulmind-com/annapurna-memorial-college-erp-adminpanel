@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { StudyMaterial, Course, Subject } from '../../types';
 import { api } from '../../services/api';
+import { PickerInput, formatDueDateTime } from '../common/PickerInput';
 import { SoundButton } from '../common/SoundButton';
 import { Modal } from '../common/Modal';
 import { Pagination } from '../common/Pagination';
@@ -24,7 +25,8 @@ import { useAuth } from '../../context/AuthContext';
 
 export const StudyMaterialsView: React.FC = () => {
   const { isFaculty, isSuperAdmin, user } = useAuth();
-  const canUpload = isFaculty || isSuperAdmin;
+  // Teachers publish daily notes for their own classes; Super Admin monitors (view/delete)
+  const canUpload = isFaculty;
   const { playSuccess, playPop, playAlert } = useSound();
 
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
@@ -44,6 +46,7 @@ export const StudyMaterialsView: React.FC = () => {
   const [uploadSemester, setUploadSemester] = useState(1);
   const [uploadSubject, setUploadSubject] = useState('');
   const [uploadTags, setUploadTags] = useState('');
+  const [uploadDate, setUploadDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -125,6 +128,7 @@ export const StudyMaterialsView: React.FC = () => {
       formData.append('semester', String(uploadSemester));
       formData.append('subject_code', uploadSubject);
       formData.append('tags', uploadTags.trim());
+      formData.append('material_date', uploadDate);
       if (selectedFile) {
         formData.append('file', selectedFile);
       }
@@ -344,7 +348,7 @@ export const StudyMaterialsView: React.FC = () => {
 
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                   <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                    Uploaded by <b className="text-slate-700 dark:text-slate-300">{m.uploaded_by_name}</b>
+                    {m.material_date ? `${formatDueDateTime(m.material_date)} • ` : ''}By <b className="text-slate-700 dark:text-slate-300">{m.uploaded_by_name}</b>
                   </span>
                   <SoundButton
                     onClick={() => handleDownload(m)}
@@ -448,6 +452,11 @@ export const StudyMaterialsView: React.FC = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Class Date *</label>
+                <PickerInput type="date" required value={uploadDate} onChange={setUploadDate} />
               </div>
 
               <div>

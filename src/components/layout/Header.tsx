@@ -141,7 +141,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch, onNavigate }) => {
         };
       case 'STUDENT':
         return {
-          label: 'Teacher Trainee',
+          label: 'Student',
           icon: GraduationCap,
           color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
         };

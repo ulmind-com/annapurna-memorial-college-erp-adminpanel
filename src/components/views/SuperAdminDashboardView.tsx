@@ -37,8 +37,8 @@ import {
   Legend,
 } from 'recharts';
 import collegeLogo from '../../assets/logo.png';
-import { api, CollegeProfile, EMPTY_COLLEGE_PROFILE } from '../../services/api';
-import { Marksheet, LeaveApplication, StudentFeedback, Student, Faculty, Course } from '../../types';
+import { api, CollegeProfile, EMPTY_COLLEGE_PROFILE, FeedbackForm } from '../../services/api';
+import { Marksheet, LeaveApplication, Student, Faculty, Course } from '../../types';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
@@ -51,7 +51,7 @@ interface SuperAdminDashboardViewProps {
 export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = ({ onNavigate }) => {
   const [marksheets, setMarksheets] = useState<Marksheet[]>([]);
   const [leaves, setLeaves] = useState<LeaveApplication[]>([]);
-  const [feedbacks, setFeedbacks] = useState<StudentFeedback[]>([]);
+  const [feedbacks, setFeedbacks] = useState<FeedbackForm[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -113,7 +113,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
         const [ms, lv, fb, sRes, fList, cList, profile, asg] = await Promise.all([
           api.getAllMarksheets(),
           api.getLeaveApplications(),
-          api.getStudentFeedbacks(),
+          api.getFeedbackForms(),
           api.getStudents(),
           api.getFaculty(),
           api.getCourses(),
@@ -217,27 +217,11 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
   const submittedPct = totalMarksheets > 0 ? (pipelineStats.submitted / totalMarksheets) * 100 : 0;
   const draftPct = totalMarksheets > 0 ? (pipelineStats.draft / totalMarksheets) * 100 : 0;
 
-  // Dynamic Trainee Academic Feedback & Ratings
-  const totalFeedbacks = feedbacks.length;
-  const avgRating = totalFeedbacks > 0
-    ? (feedbacks.reduce((acc, f) => acc + (f.rating || 5), 0) / totalFeedbacks).toFixed(1)
-    : '0.0';
-  const roundedRating = Math.round(parseFloat(avgRating));
-
-  const teachingFeedbacks = feedbacks.filter((f) => f.category === 'TEACHING_METHODOLOGY' || f.category === 'CURRICULUM' || !f.category);
-  const teachingSatisfaction = teachingFeedbacks.length > 0
-    ? Math.round((teachingFeedbacks.filter((f) => (f.rating || 5) >= 4).length / teachingFeedbacks.length) * 100)
-    : 0;
-
-  const materialFeedbacks = feedbacks.filter((f) => f.category === 'PRACTICUM_LAB' || f.category === 'CURRICULUM');
-  const materialSatisfaction = materialFeedbacks.length > 0
-    ? Math.round((materialFeedbacks.filter((f) => (f.rating || 5) >= 4).length / materialFeedbacks.length) * 100)
-    : 0;
-
-  const facilityFeedbacks = feedbacks.filter((f) => f.category === 'FACILITIES' || f.category === 'GENERAL');
-  const facilitySatisfaction = facilityFeedbacks.length > 0
-    ? Math.round((facilityFeedbacks.filter((f) => (f.rating || 5) >= 4).length / facilityFeedbacks.length) * 100)
-    : 0;
+  // Dynamic Student Feedback Cycles & Ratings
+  const openForms = feedbacks.filter((f) => f.accepting).length;
+  const totalResponses = feedbacks.reduce((acc, f) => acc + f.response_count, 0);
+  const totalInvited = feedbacks.reduce((acc, f) => acc + f.class_size, 0);
+  const responseRate = totalInvited > 0 ? Math.round((totalResponses / totalInvited) * 100) : 0;
 
   // Dynamic Leaves Approved
   const clearedLeavesCount = leaves.filter((l) => l.status === 'APPROVED').length;
@@ -324,7 +308,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
         <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Enrolled Trainees
+              Enrolled Students
             </span>
             <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
               <GraduationCap className="w-5 h-5" />
@@ -333,7 +317,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
           <div className="text-2xl font-black text-slate-900 dark:text-white mt-2">{students.length}</div>
           <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold mt-1 flex items-center gap-1">
             <CheckCircle className="w-3.5 h-3.5" />
-            Live Registered Trainees
+            Live Registered Students
           </div>
         </div>
 
@@ -366,7 +350,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
           </div>
           <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold mt-1 flex items-center gap-1">
             <TrendingUp className="w-3.5 h-3.5" />
-            {dynamicSubmissionRate}% Trainee Submission Rate
+            {dynamicSubmissionRate}% Student Submission Rate
           </div>
         </div>
 
@@ -504,7 +488,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                  Subject Performance & Trainee Pass Rates (B.Ed. Semester-1)
+                  Subject Performance & Student Pass Rates (B.Ed. Semester-1)
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Mean marks distribution and pass percentages across core NCTE curriculum subjects
@@ -631,7 +615,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
 
       {/* Row 3: Institutional Governance & Monitoring Desks (Leave Sanctions, Student Feedback) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Trainee Leave Application Sanction Desk */}
+        {/* Student Leave Application Sanction Desk */}
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-4">
           <div className="pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center justify-between">
@@ -694,68 +678,53 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
           </div>
         </div>
 
-        {/* Trainee Academic Feedback & Pedagogical Rating */}
+        {/* Student Feedback Cycles & Pedagogical Rating */}
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-4">
           <div className="pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                Trainee Academic Feedback
+                Student Feedback Cycles
               </h3>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
                 Live Submissions
               </span>
             </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Pedagogical quality & syllabus delivery rating
+              Anonymous subject & teacher ratings
             </p>
           </div>
 
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-3xl font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                {avgRating}
-                <div className="flex text-amber-400">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`w-4 h-4 ${star <= roundedRating ? 'fill-amber-400 text-amber-400' : 'text-slate-300 dark:text-slate-600'}`}
-                    />
-                  ))}
-                </div>
-              </div>
+              <div className="text-3xl font-black text-slate-900 dark:text-white">{responseRate}%</div>
               <div className="text-xs text-slate-500 mt-1 font-medium">
-                Based on {totalFeedbacks} Trainee Submissions
+                Response rate • {totalResponses} of {totalInvited} students • {openForms} open form(s)
               </div>
             </div>
           </div>
 
           <div className="space-y-1.5 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-600 dark:text-slate-300">Curriculum & Teaching</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">{teachingSatisfaction}% Satisfaction</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-600 dark:text-slate-300">Study Materials & Notes</span>
-              <span className="font-bold text-blue-600 dark:text-blue-400">{materialSatisfaction}% Positive</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-600 dark:text-slate-300">Laboratory & Facilities</span>
-              <span className="font-bold text-purple-600 dark:text-purple-400">{facilitySatisfaction}% Rating</span>
-            </div>
+            {feedbacks.slice(0, 3).map((f) => (
+              <div key={f.id} className="flex items-center justify-between gap-2">
+                <span className="text-slate-600 dark:text-slate-300 truncate">{f.title} ({f.course_code} S{f.semester})</span>
+                <span className="font-bold text-purple-600 dark:text-purple-400 whitespace-nowrap">
+                  {f.response_count}/{f.class_size}
+                </span>
+              </div>
+            ))}
+            {feedbacks.length === 0 && <p className="text-slate-400">No feedback forms created yet.</p>}
           </div>
 
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <span className="text-[11px] text-slate-500">
-              {feedbacks.length} Institutional Feedbacks
-            </span>
+            <span className="text-[11px] text-slate-500">{feedbacks.length} feedback form(s)</span>
             <SoundButton
-              onClick={() => onNavigate('student-feedback')}
+              onClick={() => onNavigate('feedback')}
               size="sm"
               variant="outline"
               icon={<ArrowRight className="w-3.5 h-3.5" />}
             >
-              Review Desk
+              Open Feedback
             </SoundButton>
           </div>
         </div>
@@ -786,7 +755,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 uppercase tracking-wider text-[10px] font-extrabold">
-                <th className="py-2.5 px-3">Trainee Name</th>
+                <th className="py-2.5 px-3">Student Name</th>
                 <th className="py-2.5 px-3">Roll Number</th>
                 <th className="py-2.5 px-3">SGPA</th>
                 <th className="py-2.5 px-3">Result Classification</th>

@@ -34,6 +34,7 @@ import { Modal } from '../common/Modal';
 import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 import collegeLogo from '../../assets/logo.png';
+import { DocumentTemplatesModal } from './DocumentTemplatesModal';
 import { useAuth } from '../../context/AuthContext';
 
 export const ExaminationsView: React.FC = () => {
@@ -43,6 +44,7 @@ export const ExaminationsView: React.FC = () => {
   const isTeacher = activeRole === 'TEACHER';
   const [mySubjectCodes, setMySubjectCodes] = useState<string[]>([]);
   const [principalName, setPrincipalName] = useState('');
+  const [studentMsId, setStudentMsId] = useState('');
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<string>('');
@@ -97,24 +99,40 @@ export const ExaminationsView: React.FC = () => {
   });
 
   // Certificate Modal & Bulk Publish
-  const [viewingCertMarksheet, setViewingCertMarksheet] = useState<Marksheet | null>(null);
   const [isPublishingAll, setIsPublishingAll] = useState(false);
 
-  const handlePublishAll = async () => {
-    if (!window.confirm(`Are you sure you want to publish all results and official certificates for ${selectedCourse} Semester ${selectedSemester}? This will make them visible immediately to students.`)) {
-      return;
-    }
+  const handleResultsVisibility = async (visible: boolean) => {
+    const msg = visible
+      ? `Publish results for ${selectedCourse} Semester ${selectedSemester}? All submitted/approved marksheets become visible to students (drafts are not published).`
+      : `Hide results for ${selectedCourse} Semester ${selectedSemester} from students?`;
+    if (!window.confirm(msg)) return;
     setIsPublishingAll(true);
     try {
-      const res = await api.publishResults(selectedCourse, selectedSemester);
+      const res = await api.publishResults(selectedCourse, selectedSemester, visible);
       playSuccess();
-      alert(res.message || 'Results published successfully!');
+      alert(res.message);
       await refreshMarksheets();
     } catch (err: any) {
       playAlert();
-      alert(err.message || 'Failed to publish results');
+      alert(err.message || 'Failed to update result visibility');
     } finally {
       setIsPublishingAll(false);
+    }
+  };
+
+  const handleDownloadCertificate = async (ms: Marksheet) => {
+    try {
+      const blob = await api.downloadCertificatePdf(ms.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Certificate_${ms.roll_number}_Sem${ms.semester}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || 'Certificate download failed');
     }
   };
 
@@ -235,7 +253,7 @@ export const ExaminationsView: React.FC = () => {
     playSuccess();
     const exportData = marksheets.map((m) => ({
       'Roll Number': m.roll_number,
-      'Trainee Name': m.student_name,
+      'Student Name': m.student_name,
       'Course': m.course_name,
       'Semester': m.semester,
       'Academic Session': m.academic_session,
@@ -416,12 +434,9 @@ export const ExaminationsView: React.FC = () => {
 
   // Student-specific Certified Marksheet view
   if (isStudent) {
-    const studentMarksheet = marksheets.find(
-      (m) =>
-        (user?.roll_number && m.roll_number === user.roll_number) ||
-        (user?.full_name && m.student_name?.toLowerCase() === user.full_name.toLowerCase()) ||
-        (user?.id && m.student_id === user.id)
-    );
+    // Backend returns only this student's PUBLISHED marksheets
+    const myMarksheets = [...marksheets].sort((a, b) => Number(b.semester) - Number(a.semester));
+    const studentMarksheet = myMarksheets.find((m) => m.id === studentMsId) || myMarksheets[0];
 
     return (
       <div className="space-y-6 text-slate-900 dark:text-slate-100 animate-in fade-in duration-300">
@@ -439,15 +454,25 @@ export const ExaminationsView: React.FC = () => {
           </div>
 
           {studentMarksheet && (
-            <SoundButton
-              onClick={() => handleDownloadPdf(studentMarksheet)}
-              variant="primary"
-              size="md"
-              soundType="pop"
-              icon={<Download className="w-4 h-4" />}
-            >
-              Download Certified PDF
-            </SoundButton>
+            <div className="flex flex-wrap items-center gap-2">
+              {myMarksheets.length > 1 && (
+                <select
+                  value={studentMarksheet.id}
+                  onChange={(e) => setStudentMsId(e.target.value)}
+                  className="px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold"
+                >
+                  {myMarksheets.map((m) => (
+                    <option key={m.id} value={m.id}>Semester {m.semester} ({m.academic_session})</option>
+                  ))}
+                </select>
+              )}
+              <SoundButton onClick={() => handleDownloadPdf(studentMarksheet)} variant="primary" size="md" soundType="pop" icon={<Download className="w-4 h-4" />}>
+                Marksheet PDF
+              </SoundButton>
+              <SoundButton onClick={() => handleDownloadCertificate(studentMarksheet)} variant="secondary" size="md" soundType="pop" icon={<Award className="w-4 h-4" />}>
+                Certificate PDF
+              </SoundButton>
+            </div>
           )}
         </div>
 
@@ -486,10 +511,10 @@ export const ExaminationsView: React.FC = () => {
               </div>
             </div>
 
-            {/* Trainee Particulars */}
+            {/* Student Particulars */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-xs">
               <div>
-                <span className="text-slate-400 font-medium block">Trainee Name:</span>
+                <span className="text-slate-400 font-medium block">Student Name:</span>
                 <span className="font-extrabold text-slate-900 dark:text-white text-sm">{studentMarksheet.student_name}</span>
               </div>
               <div>
@@ -694,16 +719,33 @@ export const ExaminationsView: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           {isSuperAdmin && (
             <>
-              <SoundButton
-                onClick={handlePublishAll}
-                variant="primary"
-                size="sm"
-                soundType="approve"
-                disabled={isPublishingAll}
-                icon={<Sparkles className="w-4 h-4 text-white" />}
-              >
-                {isPublishingAll ? 'Publishing...' : `Publish All Results (${selectedCourse} Sem ${selectedSemester})`}
-              </SoundButton>
+              {(() => {
+                const cls = marksheets.filter((m) => m.course_code === selectedCourse && Number(m.semester) === Number(selectedSemester));
+                const published = cls.filter((m) => m.status === 'PUBLISHED').length;
+                const ready = cls.filter((m) => ['SUBMITTED_BY_FACULTY', 'DEPARTMENT_VERIFIED', 'ADMIN_APPROVED'].includes(m.status)).length;
+                return (
+                  <>
+                    <span className="text-[11px] font-bold text-slate-500 px-2">
+                      {published} published • {ready} ready • {cls.length - published - ready} draft/rejected
+                    </span>
+                    <SoundButton
+                      onClick={() => handleResultsVisibility(true)}
+                      variant="primary"
+                      size="sm"
+                      soundType="approve"
+                      disabled={isPublishingAll || ready === 0}
+                      icon={<Sparkles className="w-4 h-4 text-white" />}
+                    >
+                      Publish Results ({selectedCourse} Sem {selectedSemester})
+                    </SoundButton>
+                    {published > 0 && (
+                      <SoundButton onClick={() => handleResultsVisibility(false)} variant="secondary" size="sm" disabled={isPublishingAll}>
+                        Hide Results
+                      </SoundButton>
+                    )}
+                  </>
+                );
+              })()}
 
               <SoundButton
                 onClick={() => setIsTemplateModalOpen(true)}
@@ -712,7 +754,7 @@ export const ExaminationsView: React.FC = () => {
                 soundType="pop"
                 icon={<Sliders className="w-4 h-4 text-blue-600" />}
               >
-                Configure Template
+                Marksheet & Certificate Design
               </SoundButton>
             </>
           )}
@@ -807,9 +849,9 @@ export const ExaminationsView: React.FC = () => {
         {/* Quick Statistics Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Enrolled Trainees</span>
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Enrolled Students</span>
             <span className="text-lg font-black text-slate-900 dark:text-white mt-0.5 block">
-              {enrolledCourseStudents.length} Trainees
+              {enrolledCourseStudents.length} Students
             </span>
           </div>
           <div className="p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900">
@@ -908,7 +950,7 @@ export const ExaminationsView: React.FC = () => {
       <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
           {[
-            { id: 'ALL', label: `All Trainees (${filteredStudents.length})` },
+            { id: 'ALL', label: `All Students (${filteredStudents.length})` },
             { id: 'DRAFT', label: 'Drafts' },
             { id: 'SUBMITTED_BY_FACULTY', label: 'Submitted' },
             { id: 'DEPARTMENT_VERIFIED', label: 'Dept. Verified' },
@@ -955,7 +997,7 @@ export const ExaminationsView: React.FC = () => {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-extrabold">
-                <th className="py-3.5 px-4">Trainee</th>
+                <th className="py-3.5 px-4">Student</th>
                 <th className="py-3.5 px-4">Roll Number</th>
                 <th className="py-3.5 px-4 text-center">Semester</th>
                 <th className="py-3.5 px-4 text-center">Marks</th>
@@ -1127,7 +1169,7 @@ export const ExaminationsView: React.FC = () => {
                                   <SoundButton
                                     onClick={() => {
                                       playPop();
-                                      setViewingCertMarksheet(studentMs);
+                                      handleDownloadCertificate(studentMs);
                                     }}
                                     size="sm"
                                     variant="secondary"
@@ -1423,10 +1465,10 @@ export const ExaminationsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Trainee Particulars */}
+              {/* Student Particulars */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-xs">
                 <div>
-                  <span className="text-slate-400 font-medium block">Trainee Name:</span>
+                  <span className="text-slate-400 font-medium block">Student Name:</span>
                   <span className="font-extrabold text-slate-900 dark:text-white text-sm">{selectedMarksheet.student_name}</span>
                 </div>
                 <div>
@@ -1624,199 +1666,7 @@ export const ExaminationsView: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Modal: Marksheet Template Configuration (Module C.5) */}
-      <Modal
-        isOpen={isTemplateModalOpen}
-        onClose={() => setIsTemplateModalOpen(false)}
-        title="Official College Marksheet Template Designer"
-        subtitle="Configure official college marksheet layout, grading scale, and institutional signatures"
-        maxWidth="lg"
-      >
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            try {
-              await api.updateMarksheetTemplate(templateConfig);
-              playSuccess();
-              setIsTemplateModalOpen(false);
-            } catch (err: any) {
-              playAlert();
-              alert(err.message || 'Failed to save template');
-            }
-          }}
-          className="space-y-4"
-        >
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Document Main Header
-            </label>
-            <input
-              type="text"
-              required
-              value={templateConfig.format_title}
-              onChange={(e) => setTemplateConfig({ ...templateConfig, format_title: e.target.value })}
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Grading System Scale
-              </label>
-              <select
-                value={templateConfig.grading_scale}
-                onChange={(e) => setTemplateConfig({ ...templateConfig, grading_scale: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
-              >
-                <option value="10-Point UGC/BSAEU Scale">10-Point UGC / BSAEU SGPA Scale</option>
-                <option value="Percentage Based">Absolute Marks Percentage</option>
-                <option value="7-Point NCTE Standard">7-Point NCTE Standard</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Minimum Pass Threshold (%)
-              </label>
-              <input
-                type="number"
-                min={30}
-                max={50}
-                value={templateConfig.passing_percentage}
-                onChange={(e) => setTemplateConfig({ ...templateConfig, passing_percentage: Number(e.target.value) })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Controller Signature Title
-              </label>
-              <input
-                type="text"
-                value={templateConfig.controller_signature_title}
-                onChange={(e) => setTemplateConfig({ ...templateConfig, controller_signature_title: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Principal Signature Title
-              </label>
-              <input
-                type="text"
-                value={templateConfig.principal_signature_title}
-                onChange={(e) => setTemplateConfig({ ...templateConfig, principal_signature_title: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 pt-2">
-            <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-bold cursor-pointer">
-              <input
-                type="checkbox"
-                checked={templateConfig.show_watermark_crest}
-                onChange={(e) => setTemplateConfig({ ...templateConfig, show_watermark_crest: e.target.checked })}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              Show Official College Watermark Crest
-            </label>
-
-            <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-bold cursor-pointer">
-              <input
-                type="checkbox"
-                checked={templateConfig.show_qr_hash}
-                onChange={(e) => setTemplateConfig({ ...templateConfig, show_qr_hash: e.target.checked })}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              Embed Dynamic Verification QR
-            </label>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <SoundButton type="button" onClick={() => setIsTemplateModalOpen(false)} variant="secondary" size="sm">
-              Cancel
-            </SoundButton>
-            <SoundButton type="submit" variant="primary" size="sm" soundType="success">
-              Save Marksheet Template
-            </SoundButton>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal: Official Digital Academic Certificate */}
-      {viewingCertMarksheet && (
-        <Modal
-          isOpen={!!viewingCertMarksheet}
-          onClose={() => setViewingCertMarksheet(null)}
-          title="Digital Academic Certificate"
-          subtitle="Annapurna Memorial College of Education"
-          maxWidth="2xl"
-        >
-          <div className="space-y-6">
-            <div className="p-8 border-4 border-double border-amber-600/40 rounded-3xl bg-gradient-to-b from-amber-50/20 via-white to-amber-50/20 text-center relative overflow-hidden">
-              <div className="w-16 h-16 rounded-full border border-blue-600/30 p-1 bg-white shadow-sm mx-auto flex items-center justify-center mb-3">
-                <img src={collegeLogo} alt="Logo" className="w-full h-full object-contain" />
-              </div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
-                Annapurna Memorial College of Education
-              </h2>
-              <p className="text-[11px] font-bold text-amber-700 tracking-widest uppercase mt-0.5">
-                Affiliated to BSAEU • Approved by NCTE
-              </p>
-              <div className="my-6 py-2 border-y border-amber-200/80">
-                <span className="text-xs font-black tracking-widest text-slate-700 uppercase">
-                  OFFICIAL ACADEMIC CERTIFICATE OF MERIT
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 max-w-lg mx-auto leading-relaxed">
-                This is to officially certify that <strong className="text-slate-900 font-black">{viewingCertMarksheet.student_name}</strong> (Roll: <strong className="font-mono text-blue-600">{viewingCertMarksheet.roll_number}</strong>) has successfully fulfilled all academic curriculum requirements for <strong className="text-slate-900">{viewingCertMarksheet.course_name}</strong> (Semester {viewingCertMarksheet.semester}) during session <strong className="text-slate-900">{viewingCertMarksheet.academic_session}</strong>.
-              </p>
-              <div className="mt-6 inline-flex items-center gap-6 px-6 py-3 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs font-bold text-amber-900">
-                <span>SGPA: <strong className="text-emerald-600 text-sm font-black">{viewingCertMarksheet.sgpa}</strong></span>
-                <span>•</span>
-                <span>Percentage: <strong className="text-blue-600 text-sm font-black">{viewingCertMarksheet.percentage}%</strong></span>
-                <span>•</span>
-                <span>Result: <strong className="text-emerald-700 uppercase">{viewingCertMarksheet.result_status || 'PASSED'}</strong></span>
-              </div>
-              <div className="mt-8 pt-4 border-t border-slate-200 flex items-center justify-between text-left text-[11px] text-slate-500">
-                <div>
-                  <div className="font-mono text-[10px]">HASH: {viewingCertMarksheet.qr_code_hash}</div>
-                  <div className="text-emerald-600 font-bold flex items-center gap-1 mt-0.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Digitally Verified Record
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-extrabold text-slate-900">{principalName}</div>
-                  <div className="text-[10px] text-slate-400">Principal & Chief Controller of Examinations</div>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <SoundButton
-                variant="secondary"
-                size="sm"
-                onClick={() => window.print()}
-                icon={<Printer className="w-3.5 h-3.5" />}
-              >
-                Print Certificate
-              </SoundButton>
-              <SoundButton
-                variant="primary"
-                size="sm"
-                onClick={() => setViewingCertMarksheet(null)}
-              >
-                Done
-              </SoundButton>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <DocumentTemplatesModal isOpen={isTemplateModalOpen} onClose={() => setIsTemplateModalOpen(false)} courses={courses} />
     </div>
   );
 };

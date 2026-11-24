@@ -68,7 +68,7 @@ export const ExcelImportView: React.FC<ExcelImportViewProps> = ({ onNavigate }) 
         await api.createStudent(st);
         successCount++;
       } catch (err: any) {
-        errors.push(`${st.full_name || 'Trainee'} (${st.roll_number}): ${err.message || 'Enrollment failed'}`);
+        errors.push(`${st.full_name || 'Student'} (${st.roll_number}): ${err.message || 'Enrollment failed'}`);
       }
     }
 
@@ -124,11 +124,11 @@ export const ExcelImportView: React.FC<ExcelImportViewProps> = ({ onNavigate }) 
 
         <div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white">
-            Upload Trainee Spreadsheet (.xlsx, .xls, .csv)
+            Upload Student Spreadsheet (.xlsx, .xls, .csv)
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
             Drag &amp; drop your Excel file here or click below to browse. Automatic header matching resolves
-            Roll Numbers, Trainee Names, Email, Phone, Course, and Category without manual mapping.
+            Roll Numbers, Student Names, Email, Phone, Course, and Category without manual mapping.
           </p>
         </div>
 
@@ -160,7 +160,7 @@ export const ExcelImportView: React.FC<ExcelImportViewProps> = ({ onNavigate }) 
               )}
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Spreadsheet Validation: {importResult.importedCount} Trainees Detected
+                  Spreadsheet Validation: {importResult.importedCount} Students Detected
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Data format verified. Ready for automatic database enrollment.
@@ -189,7 +189,7 @@ export const ExcelImportView: React.FC<ExcelImportViewProps> = ({ onNavigate }) 
                 soundType="haptic"
                 icon={<Users className="w-4 h-4" />}
               >
-                View Trainee Roster
+                View Student Roster
               </SoundButton>
             )}
           </div>

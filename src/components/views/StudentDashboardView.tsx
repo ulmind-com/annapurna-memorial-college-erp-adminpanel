@@ -41,7 +41,6 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
   const [leaves, setLeaves] = useState<LeaveApplication[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
-  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
   const { playSuccess, playHaptic, playPop } = useSound();
 
   useEffect(() => {
@@ -167,7 +166,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
             </div>
             <div className="space-y-1">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white uppercase tracking-wider">
-                Annapurna Memorial College of Education • Trainee Portal
+                Student Portal
               </span>
               <h1 className="text-2xl font-black tracking-tight">Welcome back, {displayName}!</h1>
               <div className="text-xs text-blue-100 flex flex-wrap items-center gap-2">
@@ -211,7 +210,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
         </div>
       </div>
 
-      {/* Trainee KPI Cards */}
+      {/* Student KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Academic Enrollment Status */}
         <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
@@ -413,7 +412,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
                     {m.title}
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                    {m.description || 'BSAEU & NCTE course pedagogy lesson notes and practicum guidelines.'}
+                    {m.description}
                   </p>
                 </div>
 
@@ -461,16 +460,28 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
             <div className="flex items-center gap-2">
               <Badge status={marksheet.status} />
               <SoundButton
-                onClick={() => {
+                onClick={async () => {
                   playPop();
-                  setIsCertModalOpen(true);
+                  try {
+                    const blob = await api.downloadCertificatePdf(marksheet.id);
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Certificate_${marksheet.roll_number}_Sem${marksheet.semester}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                  } catch (e: any) {
+                    alert(e.message || 'Certificate download failed');
+                  }
                 }}
                 size="sm"
                 variant="secondary"
                 soundType="pop"
                 icon={<Award className="w-3.5 h-3.5 text-amber-500" />}
               >
-                View Certificate
+                Download Certificate
               </SoundButton>
               <SoundButton
                 onClick={handleDownloadPdf}
@@ -563,95 +574,11 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
         </div>
       )}
 
-      {/* Modal: Official Digital Certificate */}
-      {marksheet && (
-        <Modal
-          isOpen={isCertModalOpen}
-          onClose={() => setIsCertModalOpen(false)}
-          title="Digital Academic Certificate"
-          subtitle="Annapurna Memorial College of Education"
-          maxWidth="2xl"
-        >
-          <div className="space-y-6">
-            <div className="p-8 border-4 border-double border-amber-600/40 rounded-3xl bg-gradient-to-b from-amber-50/20 via-white to-amber-50/20 text-center relative overflow-hidden">
-              <div className="w-16 h-16 rounded-full border border-blue-600/30 p-1 bg-white shadow-sm mx-auto flex items-center justify-center mb-3">
-                <img src={collegeLogo} alt="Logo" className="w-full h-full object-contain" />
-              </div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
-                Annapurna Memorial College of Education
-              </h2>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Kashinagar, South 24 Parganas, West Bengal • Affiliated & Approved Higher Education Institution
-              </p>
-
-              <div className="my-6">
-                <span className="px-4 py-1.5 rounded-full text-xs font-black bg-amber-100 text-amber-800 uppercase tracking-widest border border-amber-300">
-                  Certificate of Academic Achievement
-                </span>
-              </div>
-
-              <p className="text-xs text-slate-600 leading-relaxed max-w-lg mx-auto">
-                This is to officially certify that
-              </p>
-              <h3 className="text-xl font-black text-blue-900 dark:text-blue-400 my-2">
-                {displayName}
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed max-w-lg mx-auto">
-                Roll Number: <b className="font-mono text-slate-900">{displayRoll}</b> | Registration No: <b className="font-mono text-slate-900">{displayReg}</b> has successfully cleared and completed the examination for
-              </p>
-              <h4 className="text-base font-bold text-slate-900 mt-2">
-                {displayCourse} (Semester {displaySemester})
-              </h4>
-              <p className="text-xs text-slate-500 mt-1">
-                Securing a Grade Point Average of <b className="text-blue-600 text-sm">{marksheet.sgpa} SGPA</b> with Overall Classification: <b className="text-emerald-600 text-sm">{marksheet.result_status}</b>.
-              </p>
-
-              <div className="mt-8 pt-6 border-t border-slate-200 flex items-center justify-between text-left text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg border border-slate-200 bg-white">
-                    <QrCode className="w-8 h-8 text-slate-700" />
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-mono">
-                    HASH: {marksheet.qr_code_hash}<br />
-                    STATUS: DIGITALLY VERIFIED
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <div className="font-bold text-slate-900">{principalName}</div>
-                  <div className="text-[10px] text-slate-500">Principal & Chief Academic Officer</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <SoundButton
-                type="button"
-                onClick={() => setIsCertModalOpen(false)}
-                variant="secondary"
-                size="sm"
-              >
-                Close
-              </SoundButton>
-              <SoundButton
-                type="button"
-                onClick={() => window.print()}
-                variant="primary"
-                size="sm"
-                icon={<Printer className="w-3.5 h-3.5" />}
-              >
-                Print Certificate
-              </SoundButton>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* Trainee's Schedule derived from Curriculum */}
+      {/* Today's classes from the timetable */}
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <h3 className="text-base font-bold text-slate-900 dark:text-white pb-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
           <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-          Today's Class Schedule & Practicum Timing ({displayCourse})
+          Today's Classes ({displayCourse})
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 text-xs">
           {todaySlots.length > 0 ? (

@@ -1,730 +1,357 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Search, Plus, Mail, Phone, BookOpen, GraduationCap, CheckCircle, Edit3, Trash2, KeyRound, Copy, Check, AlertCircle } from 'lucide-react';
-import { Faculty, Course } from '../../types';
-import { api } from '../../services/api';
+import React, { useEffect, useState } from 'react';
+import { Users, Plus, Search, Pencil, Trash2, Mail, Phone, GraduationCap, KeyRound, Copy, Check, Settings2, BookOpen } from 'lucide-react';
+import { api, MasterItem } from '../../services/api';
+import { Faculty } from '../../types';
 import { SoundButton } from '../common/SoundButton';
-import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
-import { Pagination } from '../common/Pagination';
+import { EmailField, EmailStatus } from '../common/EmailField';
 import { useSound } from '../../context/SoundContext';
 
-export const FacultyView: React.FC = () => {
-  const [faculty, setFaculty] = useState<Faculty[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [search, setSearch] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(9);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
-  const [createdCredentials, setCreatedCredentials] = useState<{
-    name: string;
-    email: string;
-    password: string;
-    role: string;
-  } | null>(null);
-  const [hasCopied, setHasCopied] = useState(false);
+const inputCls =
+  'w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
+const labelCls = 'block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1';
+
+type FormState = {
+  full_name: string;
+  employee_id: string;
+  email: string;
+  phone: string;
+  department: string;
+  designation: string;
+  qualification: string;
+  specialization: string;
+  joining_date: string;
+  status: string;
+};
+
+const EMPTY: FormState = {
+  full_name: '',
+  employee_id: '',
+  email: '',
+  phone: '',
+  department: '',
+  designation: '',
+  qualification: '',
+  specialization: '',
+  joining_date: '',
+  status: 'ACTIVE',
+};
+
+interface FacultyViewProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const FacultyView: React.FC<FacultyViewProps> = ({ onNavigate }) => {
   const { playSuccess, playPop, playAlert } = useSound();
+  const [faculty, setFaculty] = useState<Faculty[]>([]);
+  const [master, setMaster] = useState<MasterItem[]>([]);
+  const [search, setSearch] = useState('');
+  const [deptFilter, setDeptFilter] = useState('');
 
-  // Add Form
-  const [name, setName] = useState('');
-  const [empId, setEmpId] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [department, setDepartment] = useState('');
-  const [designation, setDesignation] = useState('');
-  const [qualification, setQualification] = useState('');
-  const [specialization, setSpecialization] = useState('');
-  const [emailChecking, setEmailChecking] = useState(false);
-  const [emailError, setEmailError] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Faculty | null>(null);
+  const [form, setForm] = useState<FormState>(EMPTY);
+  const [emailStatus, setEmailStatus] = useState<EmailStatus>('idle');
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  // Edit Form
-  const [editName, setEditName] = useState('');
-  const [editEmpId, setEditEmpId] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editDepartment, setEditDepartment] = useState('');
-  const [editDesignation, setEditDesignation] = useState('');
-  const [editQualification, setEditQualification] = useState('');
-  const [editSpecialization, setEditSpecialization] = useState('');
+  const [credentials, setCredentials] = useState<{ name: string; email: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const loadFaculty = async () => {
+  const load = async () => {
     try {
-      const [res, cList] = await Promise.all([api.getFaculty(), api.getCourses()]);
+      const [res, md] = await Promise.all([api.getFaculty(), api.getMasterData()]);
       setFaculty(res.items);
-      setCourses(cList);
-    } catch (e) {
-      console.error(e);
+      setMaster(md);
+    } catch (e: any) {
+      alert(e.message || 'Failed to load faculty');
     }
   };
 
   useEffect(() => {
-    loadFaculty();
+    load();
   }, []);
 
-  const isValidEmailFormat = (val: string) => {
-    return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val.trim());
+  const options = (cat: MasterItem['category'], current?: string) => {
+    const names = master.filter((m) => m.category === cat).map((m) => m.name);
+    // keep a legacy value visible while editing so it isn't silently lost
+    if (current && !names.includes(current)) names.unshift(current);
+    return names;
   };
 
-  const designationSuggestions = [
-    'Professor & Principal',
-    'Professor & HOD',
-    'Associate Professor',
-    'Assistant Professor',
-    'Senior Lecturer',
-    'Lecturer',
-    'Pedagogy Instructor',
-    'Visiting Faculty',
-    'Guest Lecturer',
-    'Lab Demonstrator',
-    'Librarian',
-  ];
-
-  const departmentSuggestions = Array.from(
-    new Set([
-      'Department of Teacher Education',
-      'Department of Elementary Education',
-      'Department of Computer Science & Engineering',
-      'Department of Educational Foundation & Pedagogy',
-      ...courses.map((c) => `Department of ${c.name}`),
-      ...courses.map((c) => `Department of ${c.code}`),
-      ...faculty.map((f) => f.department).filter(Boolean),
-    ])
-  );
-
-  const handleOpenAdd = () => {
+  const openAdd = () => {
     playPop();
-    setName('');
-    setEmpId('');
-    setEmail('');
-    setPhone('');
-    setDepartment('');
-    setDesignation('');
-    setQualification('');
-    setSpecialization('');
-    setEmailError(null);
-    setFormError(null);
-    setIsAddModalOpen(true);
+    setEditing(null);
+    setForm(EMPTY);
+    setFormError('');
+    setEmailStatus('idle');
+    setModalOpen(true);
   };
 
-  const handleEmailBlur = async () => {
-    const clean = email.trim().toLowerCase();
-    if (!clean) return;
-    if (!isValidEmailFormat(clean)) {
-      setEmailError('Please enter a valid email address with a valid domain (e.g. name@domain.com).');
+  const openEdit = (f: Faculty) => {
+    playPop();
+    setEditing(f);
+    setForm({
+      full_name: f.full_name,
+      employee_id: f.employee_id,
+      email: f.email,
+      phone: f.phone || '',
+      department: f.department || '',
+      designation: f.designation || '',
+      qualification: f.qualification || '',
+      specialization: f.specialization || '',
+      joining_date: f.joining_date || '',
+      status: (f as any).status || 'ACTIVE',
+    });
+    setFormError('');
+    setEmailStatus('ok');
+    setModalOpen(true);
+  };
+
+  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+    if (emailStatus !== 'ok') {
+      playAlert();
+      setFormError(emailStatus === 'checking' ? 'Please wait, verifying email…' : 'Please enter a valid, unused email address.');
       return;
     }
-    setEmailChecking(true);
+    if (!/^[+0-9 ()-]{8,16}$/.test(form.phone.trim())) {
+      playAlert();
+      setFormError('Enter a valid phone number.');
+      return;
+    }
+    const payload: any = {
+      ...form,
+      full_name: form.full_name.trim(),
+      employee_id: form.employee_id.trim(),
+      email: form.email.trim().toLowerCase(),
+      phone: form.phone.trim(),
+      specialization: form.specialization || null,
+      joining_date: form.joining_date || null,
+    };
+    setSaving(true);
     try {
-      const res = await api.checkEmailAvailability(clean, 'FACULTY');
-      if (!res.available) {
-        setEmailError(res.detail);
+      if (editing) {
+        await api.updateFaculty(editing.id, payload);
       } else {
-        setEmailError(null);
+        delete payload.status;
+        const res = await api.createFaculty(payload);
+        if (res.generated_password) {
+          setCredentials({ name: res.full_name, email: res.email, password: res.generated_password });
+        }
       }
-    } catch {
-      setEmailError(null);
+      playSuccess();
+      setModalOpen(false);
+      load();
+    } catch (err: any) {
+      playAlert();
+      setFormError(err.message || 'Save failed');
     } finally {
-      setEmailChecking(false);
+      setSaving(false);
     }
   };
 
-  const handleAddSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-    if (!name || !empId || !email) return;
-
-    const cleanEmail = email.trim().toLowerCase();
-    if (!isValidEmailFormat(cleanEmail)) {
-      setEmailError('Please enter a valid email address with a valid domain (e.g. name@domain.com).');
-      setFormError('Invalid email format entered. Please verify email address.');
-      playAlert();
-      return;
-    }
-
-    // Direct check email availability before dispatching
-    setEmailChecking(true);
-    try {
-      const checkRes = await api.checkEmailAvailability(cleanEmail, 'FACULTY');
-      if (!checkRes.available) {
-        setEmailError(checkRes.detail);
-        setFormError(checkRes.detail);
-        playAlert();
-        setEmailChecking(false);
-        return;
-      }
-    } catch {}
-    setEmailChecking(false);
-
-    try {
-      const res = await api.createFaculty({
-        employee_id: empId.trim(),
-        full_name: name.trim(),
-        email: cleanEmail,
-        phone: phone || '+91 9876543210',
-        department: department.trim() || 'General Department',
-        designation: designation.trim() || 'Faculty Member',
-        qualification: qualification.trim() || 'Post Graduate',
-        specialization: specialization.trim() || 'Pedagogy',
-      });
-
-      setFaculty([res, ...faculty]);
-      playSuccess();
-      setIsAddModalOpen(false);
-      loadFaculty();
-      setCreatedCredentials({
-        name: res.full_name,
-        email: res.email,
-        password: res.generated_password || 'Amce#Teach2024!',
-        role: res.designation || 'Faculty Member',
-      });
-      setName('');
-      setEmpId('');
-      setEmail('');
-      setPhone('');
-      setDepartment('');
-      setDesignation('');
-      setQualification('');
-      setSpecialization('');
-      setEmailError(null);
-      setFormError(null);
-    } catch (err: any) {
-      playAlert();
-      const msg = err.message || 'Failed to add faculty';
-      setFormError(msg);
-      if (msg.toLowerCase().includes('email')) {
-        setEmailError(msg);
-      }
-    }
-  };
-
-  const handleOpenEdit = (f: Faculty) => {
-    playPop();
-    setEditingFaculty(f);
-    setEditName(f.full_name);
-    setEditEmpId(f.employee_id);
-    setEditEmail(f.email);
-    setEditPhone(f.phone || '');
-    setEditDepartment(f.department);
-    setEditDesignation(f.designation);
-    setEditQualification(f.qualification);
-    setEditSpecialization(f.specialization || '');
-  };
-
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingFaculty) return;
-
-    try {
-      await api.updateFaculty(editingFaculty.id, {
-        full_name: editName.trim(),
-        employee_id: editEmpId.trim(),
-        email: editEmail.trim(),
-        phone: editPhone.trim(),
-        department: editDepartment,
-        designation: editDesignation,
-        qualification: editQualification,
-        specialization: editSpecialization,
-      });
-
-      playSuccess();
-      setEditingFaculty(null);
-      loadFaculty();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update faculty member');
-    }
-  };
-
-  const handleDelete = async (f: Faculty) => {
-    if (!window.confirm(`Are you sure you want to remove faculty member ${f.full_name}?`)) return;
+  const remove = async (f: Faculty) => {
+    if (!window.confirm(`Remove ${f.full_name}? Their login will be deleted and subjects unassigned.`)) return;
     try {
       await api.deleteFaculty(f.id);
-      playPop();
-      loadFaculty();
+      playSuccess();
+      load();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete faculty');
+      alert(err.message || 'Delete failed');
     }
   };
 
+  const resend = async (f: Faculty) => {
+    if (!window.confirm(`Generate a new password for ${f.full_name} and email it to ${f.email}?`)) return;
+    try {
+      const res: any = await api.resendFacultyCredentials(f.id);
+      playSuccess();
+      if (res.generated_password) setCredentials({ name: f.full_name, email: f.email, password: res.generated_password });
+      else alert(res.message || 'Credentials sent.');
+    } catch (err: any) {
+      alert(err.message || 'Failed');
+    }
+  };
+
+  const q = search.toLowerCase();
   const filtered = faculty.filter(
     (f) =>
-      f.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      f.department.toLowerCase().includes(search.toLowerCase()) ||
-      f.employee_id.toLowerCase().includes(search.toLowerCase())
+      (!deptFilter || f.department === deptFilter) &&
+      [f.full_name, f.employee_id, f.email, f.designation].some((x) => (x || '').toLowerCase().includes(q))
   );
-
-  const paginatedFaculty = filtered.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
+  const missingMaster = ['DEPARTMENT', 'DESIGNATION', 'QUALIFICATION'].filter((c) => !master.some((m) => m.category === c));
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="space-y-6 animate-in fade-in duration-300 text-slate-900 dark:text-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
-            <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            <span>Faculty & Academic Staff Directory</span>
+          <h1 className="text-2xl font-black flex items-center gap-2">
+            <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Teacher / Faculty Desk
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            NCTE Recognized Teacher Educators, Assistant Professors, and Curriculum Mentors
-          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{faculty.length} faculty members</p>
         </div>
-
-        <SoundButton
-          onClick={handleOpenAdd}
-          variant="primary"
-          soundType="pop"
-          icon={<Plus className="w-4 h-4" />}
-        >
-          Add Faculty Member
-        </SoundButton>
+        <div className="flex gap-2">
+          {onNavigate && (
+            <SoundButton variant="secondary" icon={<Settings2 className="w-4 h-4" />} onClick={() => onNavigate('master-data')}>
+              Master Settings
+            </SoundButton>
+          )}
+          <SoundButton icon={<Plus className="w-4 h-4" />} soundType="pop" onClick={openAdd}>
+            Add Faculty
+          </SoundButton>
+        </div>
       </div>
 
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search faculty by name, ID, or subject..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      {missingMaster.length > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-xs font-bold text-amber-700 dark:text-amber-300">
+          Add {missingMaster.map((m) => m.toLowerCase()).join(', ')} values in Master Settings first — the faculty form dropdowns use them.
         </div>
+      )}
 
-        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-          {filtered.length} Educators
-        </span>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+          <input className={`${inputCls} pl-9`} placeholder="Search name, employee ID, email..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <select className={`${inputCls} sm:w-64`} value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)}>
+          <option value="">All departments</option>
+          {Array.from(new Set(faculty.map((f) => f.department).filter(Boolean))).map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {paginatedFaculty.map((f) => (
-          <div
-            key={f.id}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 transition-all shadow-sm flex flex-col justify-between space-y-4"
-          >
-            <div>
-              <div className="flex items-start justify-between">
-                <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                  {f.employee_id}
-                </span>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEdit(f)}
-                    title="Edit Faculty Record"
-                    className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(f)}
-                    title="Remove Faculty"
-                    className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {filtered.map((f) => (
+          <div key={f.id} className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="flex items-start gap-3">
+              <img
+                src={f.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.full_name)}`}
+                alt=""
+                className="w-12 h-12 rounded-2xl bg-slate-100 object-cover"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-black truncate">{f.full_name}</div>
+                <div className="text-xs font-bold text-blue-600 dark:text-blue-400">{f.designation}</div>
+                <div className="text-[11px] text-slate-500 truncate">{f.department}</div>
               </div>
-
-              <div className="mt-3">
-                <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug">{f.full_name}</h3>
-                <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mt-0.5">{f.designation}</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">{f.department}</div>
-              </div>
-
-              <div className="mt-4 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5 text-xs">
-                <div className="text-slate-700 dark:text-slate-300">
-                  <span className="font-bold">Qualification: </span>
-                  <span>{f.qualification}</span>
-                </div>
-                {f.specialization && (
-                  <div className="text-slate-700 dark:text-slate-300">
-                    <span className="font-bold">Specialization: </span>
-                    <span>{f.specialization}</span>
-                  </div>
-                )}
-              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800">{f.employee_id}</span>
             </div>
-
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-              <span className="truncate">{f.email}</span>
-              <span>{f.phone}</span>
+            <div className="text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
+              <div className="flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> {f.qualification}{f.specialization ? ` • ${f.specialization}` : ''}</div>
+              <div className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {f.email}</div>
+              <div className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> {f.phone}</div>
+              {f.assigned_subjects?.length ? (
+                <div className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> {f.assigned_subjects.join(', ')}</div>
+              ) : null}
+            </div>
+            <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <SoundButton size="sm" variant="secondary" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => openEdit(f)}>Edit</SoundButton>
+              <SoundButton size="sm" variant="secondary" icon={<KeyRound className="w-3.5 h-3.5" />} onClick={() => resend(f)}>Reset Login</SoundButton>
+              <SoundButton size="sm" variant="danger" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => remove(f)}>Delete</SoundButton>
             </div>
           </div>
         ))}
+        {filtered.length === 0 && (
+          <div className="md:col-span-2 xl:col-span-3 p-10 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-xs text-slate-500">
+            No faculty members found.
+          </div>
+        )}
       </div>
 
-      {/* Dynamic Pagination Controls */}
-      <div className="rounded-3xl overflow-hidden shadow-xs border border-slate-200 dark:border-slate-800">
-        <Pagination
-          currentPage={currentPage}
-          totalItems={filtered.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          onPageSizeChange={(newSize) => {
-            setPageSize(newSize);
-            setCurrentPage(1);
-          }}
-          pageSizeOptions={[6, 9, 18, 36]}
-        />
-      </div>
-
-      {/* Modal: Add Faculty */}
-      <Modal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        title="Appoint New Faculty Member"
-        subtitle="Annapurna Memorial College of Education, Kashinagar, South 24 Parganas"
-        maxWidth="lg"
-      >
-        <form onSubmit={handleAddSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.full_name}` : 'Add Faculty Member'}>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Dr. S. Chatterjee"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <label className={labelCls}>Full Name *</label>
+              <input className={inputCls} value={form.full_name} onChange={set('full_name')} required />
+            </div>
+            <div>
+              <label className={labelCls}>Employee ID *</label>
+              <input className={inputCls} value={form.employee_id} onChange={set('employee_id')} required />
+            </div>
+            <div>
+              <label className={labelCls}>Email *</label>
+              <EmailField
+                value={form.email}
+                onChange={(v) => setForm((f) => ({ ...f, email: v }))}
+                onStatus={setEmailStatus}
+                type="FACULTY"
+                excludeId={editing?.id}
+                className={inputCls}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Employee ID *</label>
-              <input
-                type="text"
-                required
-                value={empId}
-                onChange={(e) => setEmpId(e.target.value)}
-                placeholder="AMCE-FAC-011"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <label className={labelCls}>Phone *</label>
+              <input className={inputCls} value={form.phone} onChange={set('phone')} inputMode="tel" required />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Email Address * {emailChecking && <span className="text-[10px] text-blue-500 font-normal ml-1">Verifying availability...</span>}
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setEmailError(null);
-                  setFormError(null);
-                }}
-                onBlur={handleEmailBlur}
-                placeholder="faculty@annapurnacollege.org"
-                className={`w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
-                  emailError ? 'border-rose-400 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500'
-                }`}
-              />
-              {emailError && (
-                <div className="mt-1.5 p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-1.5 text-[11px] text-rose-700 dark:text-rose-300 animate-in fade-in">
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold">Email Already in Use:</span>
-                    <p className="mt-0.5">{emailError}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Phone</label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+91 98300 00000"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Designation *
-              </label>
-              <input
-                type="text"
-                required
-                list="designation-suggestions"
-                value={designation}
-                onChange={(e) => setDesignation(e.target.value)}
-                placeholder="e.g. Assistant Professor, HOD, Lecturer"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <datalist id="designation-suggestions">
-                {designationSuggestions.map((d) => (
-                  <option key={d} value={d} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Department *
-              </label>
-              <input
-                type="text"
-                required
-                list="department-suggestions"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                placeholder="e.g. Department of Computer Science"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <datalist id="department-suggestions">
-                {departmentSuggestions.map((d) => (
-                  <option key={d} value={d} />
-                ))}
-              </datalist>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Qualification</label>
-              <input
-                type="text"
-                value={qualification}
-                onChange={(e) => setQualification(e.target.value)}
-                placeholder="e.g. M.Ed., Ph.D., M.Tech, M.Sc, NET"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Specialization</label>
-              <input
-                type="text"
-                value={specialization}
-                onChange={(e) => setSpecialization(e.target.value)}
-                placeholder="e.g. Educational Psychology, Data Science"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {formError && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-2.5 text-xs text-rose-700 dark:text-rose-300">
-              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <div className="font-bold">Cannot Appoint Faculty Member</div>
-                <p className="mt-0.5">{formError}</p>
+            {([
+              ['department', 'DEPARTMENT', 'Department *', true],
+              ['designation', 'DESIGNATION', 'Designation *', true],
+              ['qualification', 'QUALIFICATION', 'Qualification *', true],
+              ['specialization', 'SPECIALIZATION', 'Specialization', false],
+            ] as const).map(([key, cat, label, required]) => (
+              <div key={key}>
+                <label className={labelCls}>{label}</label>
+                <select className={inputCls} value={form[key]} onChange={set(key)} required={required}>
+                  <option value="">{required ? 'Select…' : '— None —'}</option>
+                  {options(cat, form[key]).map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
               </div>
+            ))}
+            <div>
+              <label className={labelCls}>Joining Date</label>
+              <input type="date" className={inputCls} value={form.joining_date} onChange={set('joining_date')} />
             </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={() => setIsAddModalOpen(false)}
-              className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
-            >
-              Cancel
-            </button>
-            <SoundButton type="submit" variant="primary" soundType="success" disabled={!!emailError || emailChecking}>
-              Save Faculty Record
+            {editing && (
+              <div>
+                <label className={labelCls}>Status</label>
+                <select className={inputCls} value={form.status} onChange={set('status')}>
+                  <option value="ACTIVE">Active</option>
+                  <option value="ON_LEAVE">On Leave</option>
+                  <option value="RESIGNED">Resigned</option>
+                </select>
+              </div>
+            )}
+          </div>
+          {formError && <p className="text-xs font-bold text-rose-600">{formError}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <SoundButton type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancel</SoundButton>
+            <SoundButton type="submit" disabled={saving || emailStatus === 'checking'}>
+              {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Faculty'}
             </SoundButton>
           </div>
         </form>
       </Modal>
 
-      {/* Modal: Edit Faculty */}
-      {editingFaculty && (
-        <Modal
-          isOpen={!!editingFaculty}
-          onClose={() => setEditingFaculty(null)}
-          title={`Edit Faculty: ${editingFaculty.full_name}`}
-          subtitle="Super Admin Direct Edit Desk"
-          maxWidth="lg"
-        >
-          <form onSubmit={handleSaveEdit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Employee ID *</label>
-                <input
-                  type="text"
-                  required
-                  value={editEmpId}
-                  onChange={(e) => setEditEmpId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+      <Modal isOpen={!!credentials} onClose={() => setCredentials(null)} title="Faculty Login Created">
+        {credentials && (
+          <div className="space-y-3 text-xs">
+            <p>Share these login details with <b>{credentials.name}</b>. They were also emailed.</p>
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 font-mono space-y-1">
+              <div>Email: {credentials.email}</div>
+              <div>Password: {credentials.password}</div>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Phone</label>
-                <input
-                  type="text"
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Designation</label>
-                <input
-                  type="text"
-                  value={editDesignation}
-                  onChange={(e) => setEditDesignation(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Department</label>
-                <input
-                  type="text"
-                  list="department-suggestions"
-                  value={editDepartment}
-                  onChange={(e) => setEditDepartment(e.target.value)}
-                  placeholder="Select or enter department"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Qualification</label>
-                <input
-                  type="text"
-                  value={editQualification}
-                  onChange={(e) => setEditQualification(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Specialization</label>
-                <input
-                  type="text"
-                  value={editSpecialization}
-                  onChange={(e) => setEditSpecialization(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setEditingFaculty(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
-              >
-                Cancel
-              </button>
-              <SoundButton type="submit" variant="primary" soundType="success">
-                Save & Update Faculty
-              </SoundButton>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Generated Access Credentials Modal */}
-      {createdCredentials && (
-        <Modal
-          isOpen={true}
-          onClose={() => setCreatedCredentials(null)}
-          title="Faculty Portal Credentials Generated"
-          subtitle="Secure Onboarding Information"
-          maxWidth="md"
-        >
-          <div className="space-y-4 text-xs">
-            <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300">
-              <span className="font-bold block">
-                Official Access Account Created Successfully!
-              </span>
-              <span className="text-[11px] block mt-0.5">
-                The faculty member has been registered and onboarding email dispatched via Resend.
-              </span>
-            </div>
-
-            <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono">
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Faculty Name</span>
-                <span className="font-bold text-slate-900 dark:text-white font-sans">{createdCredentials.name}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Registered Login Email</span>
-                <span className="text-blue-600 dark:text-blue-400 font-bold">{createdCredentials.email}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Temporary Security Password</span>
-                <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-700 mt-0.5">
-                  <span className="font-bold text-purple-600 dark:text-purple-400">{createdCredentials.password}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(
-                        `Email: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`
-                      );
-                      setHasCopied(true);
-                      setTimeout(() => setHasCopied(false), 2000);
-                    }}
-                    className="flex items-center gap-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-sans font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200"
-                  >
-                    {hasCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                    <span>{hasCopied ? 'Copied' : 'Copy'}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-500 italic">
-              * The faculty member can log in and update their password anytime through their profile settings.
-            </p>
-
-            <div className="flex justify-end pt-2">
-              <SoundButton
-                onClick={() => setCreatedCredentials(null)}
-                variant="primary"
-                size="sm"
-              >
-                Close & Done
-              </SoundButton>
-            </div>
+            <SoundButton
+              icon={copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              onClick={() => {
+                navigator.clipboard.writeText(`Email: ${credentials.email}\nPassword: ${credentials.password}`);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
+            >
+              {copied ? 'Copied' : 'Copy'}
+            </SoundButton>
           </div>
-        </Modal>
-      )}
-
-      {/* Dynamic Department Datalist Auto-Suggestions */}
-      <datalist id="department-suggestions">
-        {departmentSuggestions.map((dep) => (
-          <option key={dep} value={dep} />
-        ))}
-      </datalist>
+        )}
+      </Modal>
     </div>
   );
 };

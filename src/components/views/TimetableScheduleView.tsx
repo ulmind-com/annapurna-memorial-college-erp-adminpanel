@@ -179,8 +179,8 @@ export const TimetableScheduleView: React.FC = () => {
           </p>
         </div>
 
-        {/* ONLY Teachers and Super Admin can add lecture slots! Students NEVER see this button! */}
-        {!isStudent && (
+        {/* Timetable is managed by the Super Admin; teachers and students view it */}
+        {isSuperAdmin && (
           <div className="flex items-center gap-2">
             <SoundButton
               onClick={() => {
@@ -348,8 +348,8 @@ export const TimetableScheduleView: React.FC = () => {
                   {slot.status || 'Scheduled'}
                 </span>
 
-                {/* ONLY Teachers and Admins can delete slots! */}
-                {!isStudent && (
+                {/* Only the Super Admin can delete slots */}
+                {isSuperAdmin && (
                   <button
                     type="button"
                     onClick={() => handleDeleteSlot(slot.id, slot.subject)}

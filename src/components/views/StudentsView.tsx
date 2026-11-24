@@ -1,956 +1,414 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Users,
-  Search,
-  Plus,
-  Filter,
-  Eye,
-  FileText,
-  Phone,
-  Mail,
-  MapPin,
-  CheckCircle,
-  Download,
-  Edit3,
-  Trash2,
-  Copy,
-  Check,
-  AlertCircle,
-} from 'lucide-react';
-import { Student, Course } from '../../types';
+import React, { useEffect, useState } from 'react';
+import { GraduationCap, Plus, Search, Pencil, Trash2, Eye, KeyRound, Copy, Check } from 'lucide-react';
 import { api } from '../../services/api';
+import { Course, Student } from '../../types';
 import { SoundButton } from '../common/SoundButton';
-import { Badge } from '../common/Badge';
 import { Modal } from '../common/Modal';
-import { Pagination } from '../common/Pagination';
+import { EmailField, EmailStatus } from '../common/EmailField';
 import { useSound } from '../../context/SoundContext';
-import { useAuth } from '../../context/AuthContext';
+
+const inputCls =
+  'w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
+const labelCls = 'block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1';
+
+type FormState = {
+  roll_number: string;
+  registration_number: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  course_code: string;
+  semester: number;
+  academic_session: string;
+  section: string;
+  gender: string;
+  category: string;
+  date_of_birth: string;
+  guardian_name: string;
+  guardian_phone: string;
+  address: string;
+  status: string;
+};
+
+const EMPTY: FormState = {
+  roll_number: '',
+  registration_number: '',
+  full_name: '',
+  email: '',
+  phone: '',
+  course_code: '',
+  semester: 1,
+  academic_session: '',
+  section: 'A',
+  gender: 'MALE',
+  category: 'GEN',
+  date_of_birth: '',
+  guardian_name: '',
+  guardian_phone: '',
+  address: '',
+  status: 'ACTIVE',
+};
 
 export const StudentsView: React.FC = () => {
+  const { playSuccess, playPop, playAlert } = useSound();
   const [students, setStudents] = useState<Student[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [sessions, setSessions] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [courseFilter, setCourseFilter] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
-  const [createdCredentials, setCreatedCredentials] = useState<{
-    name: string;
-    email: string;
-    password: string;
-    roll: string;
-    role: string;
-  } | null>(null);
-  const [hasCopied, setHasCopied] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const { playSuccess, playPop, playAlert } = useSound();
-  const { isSuperAdmin } = useAuth();
+  const [semFilter, setSemFilter] = useState('');
 
-  // Form State for New Student
-  const [newRoll, setNewRoll] = useState('');
-  const [newRegNumber, setNewRegNumber] = useState('');
-  const [newName, setNewName] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newCourse, setNewCourse] = useState('BED');
-  const [newSession, setNewSession] = useState('2024-2026');
-  const [newSemester, setNewSemester] = useState(1);
-  const [newGender, setNewGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('FEMALE');
-  const [newCategory, setNewCategory] = useState('GEN');
-  const [newGuardian, setNewGuardian] = useState('');
-  const [newGuardianPhone, setNewGuardianPhone] = useState('');
-  const [emailChecking, setEmailChecking] = useState(false);
-  const [emailError, setEmailError] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Student | null>(null);
+  const [viewing, setViewing] = useState<Student | null>(null);
+  const [form, setForm] = useState<FormState>(EMPTY);
+  const [emailStatus, setEmailStatus] = useState<EmailStatus>('idle');
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [credentials, setCredentials] = useState<{ name: string; email: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  // Form State for Editing Student
-  const [editName, setEditName] = useState('');
-  const [editRoll, setEditRoll] = useState('');
-  const [editRegNumber, setEditRegNumber] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editCourse, setEditCourse] = useState('BED');
-  const [editSemester, setEditSemester] = useState(1);
-  const [editCategory, setEditCategory] = useState('GEN');
-  const [editStatus, setEditStatus] = useState<'ACTIVE' | 'SUSPENDED' | 'GRADUATED'>('ACTIVE');
-  const [editGuardian, setEditGuardian] = useState('');
-
-  const isValidEmailFormat = (val: string) => {
-    return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val.trim());
-  };
-
-  const loadCourses = async () => {
+  const load = async () => {
     try {
-      const cList = await api.getCourses();
+      const [sRes, cList, sess] = await Promise.all([
+        api.getStudents({ course_code: courseFilter || undefined, semester: semFilter || undefined }),
+        api.getCourses(),
+        api.getAcademicSessions(),
+      ]);
+      setStudents(sRes.items);
       setCourses(cList);
-      if (cList.length > 0 && !cList.some((c) => c.code === newCourse)) {
-        setNewCourse(cList[0].code);
-      }
-    } catch (err) {
-      console.error('Failed to load courses:', err);
-    }
-  };
-
-  const loadStudents = async () => {
-    try {
-      const res = await api.getStudents({ search, course_code: courseFilter });
-      setStudents(res.items);
-    } catch (err) {
-      console.error(err);
+      setSessions(sess.map((x) => x.label));
+    } catch (e: any) {
+      alert(e.message || 'Failed to load students');
     }
   };
 
   useEffect(() => {
-    loadCourses();
-  }, []);
+    load();
+  }, [courseFilter, semFilter]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-    loadStudents();
-  }, [search, courseFilter]);
+  const course = courses.find((c) => c.code === form.course_code);
+  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [k]: k === 'semester' ? Number(e.target.value) : e.target.value }));
 
-  const paginatedStudents = students.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
-
-  const handleOpenEnrollModal = () => {
+  const openAdd = () => {
     playPop();
-    loadCourses(); // Fresh load so newly added courses immediately show in suggestions
-    setIsEnrollModalOpen(true);
+    setEditing(null);
+    setForm({ ...EMPTY, course_code: courses[0]?.code || '', academic_session: sessions[0] || '' });
+    setFormError('');
+    setEmailStatus('idle');
+    setModalOpen(true);
   };
 
-  const handleEmailBlur = async () => {
-    const clean = newEmail.trim().toLowerCase();
-    if (!clean) return;
-    if (!isValidEmailFormat(clean)) {
-      setEmailError('Please enter a valid email address with a valid domain (e.g. student@domain.com).');
+  const openEdit = (s: Student) => {
+    playPop();
+    setViewing(null);
+    setEditing(s);
+    setForm({
+      roll_number: s.roll_number,
+      registration_number: s.registration_number || '',
+      full_name: s.full_name,
+      email: s.email,
+      phone: s.phone || '',
+      course_code: s.course_code,
+      semester: Number(s.semester) || 1,
+      academic_session: s.academic_session || '',
+      section: s.section || 'A',
+      gender: s.gender || 'MALE',
+      category: s.category || 'GEN',
+      date_of_birth: s.date_of_birth || '',
+      guardian_name: s.guardian_name || '',
+      guardian_phone: s.guardian_phone || '',
+      address: (s as any).address || '',
+      status: s.status || 'ACTIVE',
+    });
+    setFormError('');
+    setEmailStatus('ok');
+    setModalOpen(true);
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+    if (emailStatus !== 'ok') {
+      playAlert();
+      setFormError(emailStatus === 'checking' ? 'Please wait, verifying email…' : 'Please enter a valid, unused email address.');
       return;
     }
-    setEmailChecking(true);
+    if (!/^[+0-9 ()-]{8,16}$/.test(form.phone.trim())) {
+      playAlert();
+      setFormError('Enter a valid phone number.');
+      return;
+    }
+    if (form.academic_session && !/^\d{4}-\d{4}$/.test(form.academic_session.trim())) {
+      playAlert();
+      setFormError('Academic session must look like 2025-2027.');
+      return;
+    }
+    const payload: any = {
+      ...form,
+      roll_number: form.roll_number.trim(),
+      registration_number: form.registration_number.trim() || null,
+      full_name: form.full_name.trim(),
+      email: form.email.trim().toLowerCase(),
+      phone: form.phone.trim(),
+      academic_session: form.academic_session.trim(),
+      date_of_birth: form.date_of_birth || null,
+      address: form.address || null,
+    };
+    setSaving(true);
     try {
-      const res = await api.checkEmailAvailability(clean, 'STUDENT');
-      if (!res.available) {
-        setEmailError(res.detail);
+      if (editing) {
+        await api.updateStudent(editing.id, payload);
       } else {
-        setEmailError(null);
+        delete payload.status;
+        const res = await api.createStudent(payload);
+        if (res.generated_password) setCredentials({ name: res.full_name, email: res.email, password: res.generated_password });
       }
-    } catch {
-      setEmailError(null);
+      playSuccess();
+      setModalOpen(false);
+      load();
+    } catch (err: any) {
+      playAlert();
+      setFormError(err.message || 'Save failed');
     } finally {
-      setEmailChecking(false);
+      setSaving(false);
     }
   };
 
-  const handleEnrollSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-
-    const cleanEmail = newEmail.trim().toLowerCase();
-    if (!isValidEmailFormat(cleanEmail)) {
-      setEmailError('Please enter a valid email address with a valid domain (e.g. student@domain.com).');
-      setFormError('Invalid email format. Please verify trainee email.');
-      playAlert();
-      return;
-    }
-
-    // Pre-check email availability before dispatching
-    setEmailChecking(true);
+  const remove = async (s: Student) => {
+    if (!window.confirm(`Delete ${s.full_name} (${s.roll_number})? Their login will also be removed.`)) return;
     try {
-      const checkRes = await api.checkEmailAvailability(cleanEmail, 'STUDENT');
-      if (!checkRes.available) {
-        setEmailError(checkRes.detail);
-        setFormError(checkRes.detail);
-        playAlert();
-        setEmailChecking(false);
-        return;
-      }
-    } catch {}
-    setEmailChecking(false);
-
-    try {
-      const matchedCourse = courses.find((c) => c.code.toUpperCase() === newCourse.toUpperCase());
-      const course_name = matchedCourse ? matchedCourse.name : newCourse;
-
-      const res = await api.createStudent({
-        roll_number: newRoll.trim(),
-        registration_number: newRegNumber.trim() || undefined,
-        full_name: newName.trim(),
-        email: cleanEmail,
-        phone: newPhone.trim(),
-        course_code: newCourse,
-        course_name,
-        academic_session: newSession,
-        semester: Number(newSemester),
-        gender: newGender,
-        category: newCategory,
-        guardian_name: newGuardian.trim(),
-        guardian_phone: newGuardianPhone.trim(),
-        guardian_relation: 'Parent / Legal Guardian',
-      });
-
+      await api.deleteStudent(s.id);
       playSuccess();
-      setIsEnrollModalOpen(false);
-      setCreatedCredentials({
-        name: res.full_name,
-        email: res.email,
-        password: res.generated_password || 'Amce#Stud2024!',
-        roll: res.roll_number,
-        role: 'Teacher Trainee (Student)',
-      });
-      resetNewForm();
-      setEmailError(null);
-      setFormError(null);
-      loadStudents();
+      setViewing(null);
+      load();
     } catch (err: any) {
-      playAlert();
-      const msg = err.message || 'Enrollment failed';
-      setFormError(msg);
-      if (msg.toLowerCase().includes('email')) {
-        setEmailError(msg);
-      }
+      alert(err.message || 'Delete failed');
     }
   };
 
-  const handleOpenEdit = (st: Student) => {
-    playPop();
-    setEditingStudent(st);
-    setEditName(st.full_name);
-    setEditRoll(st.roll_number);
-    setEditRegNumber(st.registration_number || '');
-    setEditEmail(st.email);
-    setEditPhone(st.phone || '');
-    setEditCourse(st.course_code);
-    setEditSemester(st.semester);
-    setEditCategory(st.category);
-    setEditStatus((st.status as any) || 'ACTIVE');
-    setEditGuardian(st.guardian_name || '');
-  };
-
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingStudent) return;
-
+  const resend = async (s: Student) => {
+    if (!window.confirm(`Generate a new password for ${s.full_name} and email it to ${s.email}?`)) return;
     try {
-      const matchedCourse = courses.find((c) => c.code.toUpperCase() === editCourse.toUpperCase());
-      const course_name = matchedCourse ? matchedCourse.name : editCourse;
-
-      await api.updateStudent(editingStudent.id, {
-        full_name: editName.trim(),
-        roll_number: editRoll.trim(),
-        registration_number: editRegNumber.trim() || undefined,
-        email: editEmail.trim(),
-        phone: editPhone.trim(),
-        course_code: editCourse,
-        course_name,
-        semester: Number(editSemester),
-        category: editCategory,
-        status: editStatus,
-        guardian_name: editGuardian.trim(),
-      });
-
+      const res: any = await api.resendStudentCredentials(s.id);
       playSuccess();
-      setEditingStudent(null);
-      loadStudents();
+      alert(res.message || 'New login details emailed.');
     } catch (err: any) {
-      alert(err.message || 'Failed to update student profile');
+      alert(err.message || 'Failed');
     }
   };
 
-  const handleDelete = async (st: Student) => {
-    if (!window.confirm(`Are you sure you want to delete student ${st.full_name} (${st.roll_number})?`)) {
-      return;
-    }
-    try {
-      await api.deleteStudent(st.id);
-      playPop();
-      loadStudents();
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete student');
-    }
-  };
-
-  const resetNewForm = () => {
-    setNewRoll('');
-    setNewRegNumber('');
-    setNewName('');
-    setNewEmail('');
-    setNewPhone('');
-    setNewGuardian('');
-    setNewGuardianPhone('');
-  };
+  const q = search.toLowerCase();
+  const filtered = students.filter((s) =>
+    [s.full_name, s.roll_number, s.email, s.registration_number].some((x) => (x || '').toLowerCase().includes(q))
+  );
+  const filterCourse = courses.find((c) => c.code === courseFilter);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="space-y-6 animate-in fade-in duration-300 text-slate-900 dark:text-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
-            <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            <span>Student Trainees & Admissions Roster</span>
+          <h1 className="text-2xl font-black flex items-center gap-2">
+            <GraduationCap className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Student Management
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Manage enrolled B.Ed. & D.El.Ed. teacher trainees, BSAEU registrations, and student profiles
-          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{students.length} students</p>
         </div>
+        <SoundButton icon={<Plus className="w-4 h-4" />} soundType="pop" onClick={openAdd} disabled={!courses.length}>
+          Admit Student
+        </SoundButton>
+      </div>
+      {!courses.length && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs font-bold text-amber-700">
+          Create a course in Academic Structure before admitting students.
+        </div>
+      )}
 
-        <div className="flex items-center gap-2">
-          <SoundButton
-            onClick={handleOpenEnrollModal}
-            variant="primary"
-            soundType="pop"
-            icon={<Plus className="w-4 h-4" />}
-          >
-            Admit New Trainee
-          </SoundButton>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+          <input className={`${inputCls} pl-9`} placeholder="Search name, roll, registration, email..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <select className={`${inputCls} sm:w-60`} value={courseFilter} onChange={(e) => { setCourseFilter(e.target.value); setSemFilter(''); }}>
+          <option value="">All courses</option>
+          {courses.map((c) => (
+            <option key={c.code} value={c.code}>{c.name} ({c.code})</option>
+          ))}
+        </select>
+        <select className={`${inputCls} sm:w-40`} value={semFilter} onChange={(e) => setSemFilter(e.target.value)} disabled={!filterCourse}>
+          <option value="">All semesters</option>
+          {Array.from({ length: filterCourse?.total_semesters || 0 }, (_, i) => i + 1).map((s) => (
+            <option key={s} value={s}>Semester {s}</option>
+          ))}
+        </select>
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by name, roll, or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <select
-            value={courseFilter}
-            onChange={(e) => setCourseFilter(e.target.value)}
-            className="px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
-          >
-            <option value="">All Academic Programs ({courses.length})</option>
-            {courses.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name} ({c.code})
-              </option>
-            ))}
-          </select>
-
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-            {students.length} Trainees
-          </span>
-        </div>
-      </div>
-
-      {/* Students Table */}
-      <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-extrabold">
-                <th className="py-3.5 px-5">Trainee</th>
-                <th className="py-3.5 px-5">Roll Number</th>
-                <th className="py-3.5 px-5">Registration No</th>
-                <th className="py-3.5 px-5">Course & Session</th>
-                <th className="py-3.5 px-5">Category</th>
-                <th className="py-3.5 px-5">Status</th>
-                <th className="py-3.5 px-5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {paginatedStudents.map((st) => (
-                <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                  <td className="py-3.5 px-5">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={st.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${st.roll_number}`}
-                        alt={st.full_name}
-                        className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 object-cover shadow-2xs"
-                      />
-                      <div>
-                        <div className="font-extrabold text-slate-900 dark:text-white">{st.full_name}</div>
-                        <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                          <Mail className="w-3 h-3 text-slate-400" />
-                          {st.email}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3.5 px-5 font-mono font-bold text-blue-600 dark:text-blue-400">{st.roll_number}</td>
-                  <td className="py-3.5 px-5 font-mono text-slate-500 dark:text-slate-400 text-[11px]">
-                    {st.registration_number || 'Pending'}
-                  </td>
-                  <td className="py-3.5 px-5">
-                    <div className="font-bold text-slate-800 dark:text-slate-200">{st.course_code} - Sem {st.semester}</div>
-                    <div className="text-[10px] text-slate-400">{st.academic_session}</div>
-                  </td>
-                  <td className="py-3.5 px-5">
-                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                      {st.category}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-5">
-                    <Badge status={st.status} size="sm" />
-                  </td>
-                  <td className="py-3.5 px-5 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <SoundButton
-                        onClick={() => setSelectedStudent(st)}
-                        size="sm"
-                        variant="ghost"
-                        icon={<Eye className="w-3.5 h-3.5" />}
-                      >
-                        Profile
-                      </SoundButton>
-
-                      {/* Edit Button for Super Admin */}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(st)}
-                        title="Edit Student Details"
-                        className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Delete Button for Super Admin */}
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(st)}
-                        title="Delete Student"
-                        className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Dynamic Pagination Controls */}
-        <Pagination
-          currentPage={currentPage}
-          totalItems={students.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          onPageSizeChange={(newSize) => {
-            setPageSize(newSize);
-            setCurrentPage(1);
-          }}
-          pageSizeOptions={[10, 25, 50, 100]}
-        />
-      </div>
-
-      {/* Modal: Enroll New Trainee */}
-      <Modal
-        isOpen={isEnrollModalOpen}
-        onClose={() => setIsEnrollModalOpen(false)}
-        title="Admit New Teacher Trainee"
-        subtitle="Annapurna Memorial College of Education, Kashinagar, South 24 Parganas"
-        maxWidth="2xl"
-      >
-        <form onSubmit={handleEnrollSubmit} className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
-              <input
-                type="text"
-                required
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="e.g. Somjit Mondal"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Roll Number *</label>
-              <input
-                type="text"
-                required
-                value={newRoll}
-                onChange={(e) => setNewRoll(e.target.value)}
-                placeholder="e.g. AMC-2024-055"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Registration No.</label>
-              <input
-                type="text"
-                value={newRegNumber}
-                onChange={(e) => setNewRegNumber(e.target.value)}
-                placeholder="e.g. REG-2024-1029"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Email Address * {emailChecking && <span className="text-[10px] text-blue-500 font-normal ml-1">Verifying availability...</span>}
-              </label>
-              <input
-                type="email"
-                required
-                value={newEmail}
-                onChange={(e) => {
-                  setNewEmail(e.target.value);
-                  setEmailError(null);
-                  setFormError(null);
-                }}
-                onBlur={handleEmailBlur}
-                placeholder="suman@annapurnacollege.org"
-                className={`w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
-                  emailError ? 'border-rose-400 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500'
-                }`}
-              />
-              {emailError && (
-                <div className="mt-1.5 p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-1.5 text-[11px] text-rose-700 dark:text-rose-300 animate-in fade-in">
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold">Email Already Registered:</span>
-                    <p className="mt-0.5">{emailError}</p>
+      <div className="overflow-x-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-left text-slate-500 border-b border-slate-200 dark:border-slate-800">
+              <th className="p-3">Student</th>
+              <th className="p-3">Roll / Reg. No.</th>
+              <th className="p-3">Course</th>
+              <th className="p-3">Session</th>
+              <th className="p-3">Status</th>
+              <th className="p-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((s) => (
+              <tr key={s.id} className="border-b border-slate-100 dark:border-slate-800/60">
+                <td className="p-3">
+                  <div className="font-bold">{s.full_name}</div>
+                  <div className="text-[10px] text-slate-500">{s.email}</div>
+                </td>
+                <td className="p-3 font-mono">
+                  <div className="font-bold">{s.roll_number}</div>
+                  <div className="text-[10px] text-slate-500">{s.registration_number || '—'}</div>
+                </td>
+                <td className="p-3">{s.course_name} ({s.course_code}) • Sem {s.semester}</td>
+                <td className="p-3">{s.academic_session}</td>
+                <td className="p-3">{s.status}</td>
+                <td className="p-3">
+                  <div className="flex justify-end gap-1">
+                    <button type="button" title="View" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => setViewing(s)}><Eye className="w-4 h-4" /></button>
+                    <button type="button" title="Edit" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-blue-600" onClick={() => openEdit(s)}><Pencil className="w-4 h-4" /></button>
+                    <button type="button" title="Reset login" className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => resend(s)}><KeyRound className="w-4 h-4" /></button>
+                    <button type="button" title="Delete" className="p-2 rounded-lg hover:bg-rose-50 text-rose-600" onClick={() => remove(s)}><Trash2 className="w-4 h-4" /></button>
                   </div>
-                </div>
-              )}
-            </div>
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={6} className="p-8 text-center text-slate-400">No students found.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.full_name}` : 'Admit New Student'}>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><label className={labelCls}>Full Name *</label><input className={inputCls} value={form.full_name} onChange={set('full_name')} required /></div>
+            <div><label className={labelCls}>Roll Number *</label><input className={inputCls} value={form.roll_number} onChange={set('roll_number')} required /></div>
+            <div><label className={labelCls}>Registration Number</label><input className={inputCls} value={form.registration_number} onChange={set('registration_number')} placeholder="University registration no." /></div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Phone Number *</label>
-              <input
-                type="text"
-                required
-                value={newPhone}
-                onChange={(e) => setNewPhone(e.target.value)}
-                placeholder="+91 98320 00000"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <label className={labelCls}>Email *</label>
+              <EmailField value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} onStatus={setEmailStatus} type="STUDENT" excludeId={editing?.id} className={inputCls} />
             </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
+            <div><label className={labelCls}>Phone *</label><input className={inputCls} value={form.phone} onChange={set('phone')} inputMode="tel" required /></div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Program</label>
-              <select
-                value={newCourse}
-                onChange={(e) => {
-                  setNewCourse(e.target.value);
-                  setNewSemester(1);
-                }}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-              >
-                {courses.length === 0 ? (
-                  <option value="BED">Bachelor of Education (B.Ed.)</option>
-                ) : (
-                  courses.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.name} ({c.code})
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Session</label>
-              <input
-                type="text"
-                value={newSession}
-                onChange={(e) => setNewSession(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Semester</label>
-              <select
-                value={newSemester}
-                onChange={(e) => setNewSemester(Number(e.target.value))}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {Array.from(
-                  { length: courses.find((c) => c.code === newCourse)?.total_semesters || 4 },
-                  (_, i) => i + 1
-                ).map((sem) => (
-                  <option key={sem} value={sem}>
-                    Semester {sem}
+              <label className={labelCls}>Course *</label>
+              <select className={inputCls} value={form.course_code} onChange={(e) => setForm((f) => ({ ...f, course_code: e.target.value, semester: 1 }))} required>
+                {courses.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name} ({c.code}) — {c.remaining_seats ?? '?'} seats left
                   </option>
                 ))}
               </select>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Category</label>
-              <select
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="GEN">General</option>
-                <option value="SC">Scheduled Caste (SC)</option>
-                <option value="ST">Scheduled Tribe (ST)</option>
-                <option value="OBC-A">OBC-A</option>
-                <option value="OBC-B">OBC-B</option>
-                <option value="EWS">Economically Weaker Section (EWS)</option>
+              <label className={labelCls}>Semester *</label>
+              <select className={inputCls} value={form.semester} onChange={set('semester')}>
+                {Array.from({ length: course?.total_semesters || 1 }, (_, i) => i + 1).map((s) => (
+                  <option key={s} value={s}>Semester {s}</option>
+                ))}
               </select>
             </div>
-
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Guardian Name</label>
-              <input
-                type="text"
-                value={newGuardian}
-                onChange={(e) => setNewGuardian(e.target.value)}
-                placeholder="Father / Guardian Name"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <label className={labelCls}>Academic Session *</label>
+              <input className={inputCls} list="session-options" value={form.academic_session} onChange={set('academic_session')} placeholder="2025-2027" required />
+              <datalist id="session-options">
+                {sessions.map((s) => <option key={s} value={s} />)}
+              </datalist>
             </div>
-          </div>
-
-          {formError && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-2.5 text-xs text-rose-700 dark:text-rose-300">
-              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+            <div><label className={labelCls}>Section</label><input className={inputCls} value={form.section} onChange={set('section')} /></div>
+            <div>
+              <label className={labelCls}>Gender</label>
+              <select className={inputCls} value={form.gender} onChange={set('gender')}>
+                <option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Category</label>
+              <select className={inputCls} value={form.category} onChange={set('category')}>
+                {['GEN', 'OBC-A', 'OBC-B', 'SC', 'ST', 'EWS'].map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div><label className={labelCls}>Date of Birth</label><input type="date" className={inputCls} value={form.date_of_birth} onChange={set('date_of_birth')} /></div>
+            <div><label className={labelCls}>Guardian Name</label><input className={inputCls} value={form.guardian_name} onChange={set('guardian_name')} /></div>
+            <div><label className={labelCls}>Guardian Phone</label><input className={inputCls} value={form.guardian_phone} onChange={set('guardian_phone')} /></div>
+            {editing && (
               <div>
-                <div className="font-bold">Cannot Complete Admission</div>
-                <p className="mt-0.5">{formError}</p>
+                <label className={labelCls}>Status</label>
+                <select className={inputCls} value={form.status} onChange={set('status')}>
+                  {['ACTIVE', 'SUSPENDED', 'GRADUATED', 'DROPPED'].map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={() => setIsEnrollModalOpen(false)}
-              className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
-            >
-              Cancel
-            </button>
-            <SoundButton type="submit" variant="primary" soundType="success" disabled={!!emailError || emailChecking}>
-              Complete Admission
-            </SoundButton>
+            )}
+          </div>
+          <div><label className={labelCls}>Address</label><textarea className={inputCls} rows={2} value={form.address} onChange={set('address')} /></div>
+          {formError && <p className="text-xs font-bold text-rose-600">{formError}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <SoundButton type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancel</SoundButton>
+            <SoundButton type="submit" disabled={saving || emailStatus === 'checking'}>{saving ? 'Saving…' : editing ? 'Save Changes' : 'Admit Student'}</SoundButton>
           </div>
         </form>
       </Modal>
 
-      {/* Modal: Edit Existing Trainee (Super Admin Full Control) */}
-      {editingStudent && (
-        <Modal
-          isOpen={!!editingStudent}
-          onClose={() => setEditingStudent(null)}
-          title={`Edit Trainee Record: ${editingStudent.full_name}`}
-          subtitle="Super Admin Direct Edit Desk • Instant Database Synchronized"
-          maxWidth="2xl"
-        >
-          <form onSubmit={handleSaveEdit} className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Roll Number *</label>
-                <input
-                  type="text"
-                  required
-                  value={editRoll}
-                  onChange={(e) => setEditRoll(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Registration No.</label>
-                <input
-                  type="text"
-                  value={editRegNumber}
-                  onChange={(e) => setEditRegNumber(e.target.value)}
-                  placeholder="e.g. REG-2024-1029"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
-                <input
-                  type="email"
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Phone Number</label>
-                <input
-                  type="text"
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Program</label>
-                <select
-                  value={editCourse}
-                  onChange={(e) => {
-                    setEditCourse(e.target.value);
-                    setEditSemester(1);
-                  }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-                >
-                  {courses.length === 0 ? (
-                    <option value="BED">Bachelor of Education (B.Ed.)</option>
-                  ) : (
-                    courses.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.name} ({c.code})
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Semester</label>
-                <select
-                  value={editSemester}
-                  onChange={(e) => setEditSemester(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {Array.from(
-                    { length: courses.find((c) => c.code === editCourse)?.total_semesters || 4 },
-                    (_, i) => i + 1
-                  ).map((sem) => (
-                    <option key={sem} value={sem}>
-                      Semester {sem}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Status</label>
-                <select
-                  value={editStatus}
-                  onChange={(e: any) => setEditStatus(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
-                >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="SUSPENDED">SUSPENDED</option>
-                  <option value="GRADUATED">GRADUATED</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Category</label>
-                <select
-                  value={editCategory}
-                  onChange={(e) => setEditCategory(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="GEN">General</option>
-                  <option value="SC">Scheduled Caste (SC)</option>
-                  <option value="ST">Scheduled Tribe (ST)</option>
-                  <option value="OBC-A">OBC-A</option>
-                  <option value="OBC-B">OBC-B</option>
-                  <option value="EWS">EWS</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Guardian Name</label>
-                <input
-                  type="text"
-                  value={editGuardian}
-                  onChange={(e) => setEditGuardian(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setEditingStudent(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
-              >
-                Cancel
-              </button>
-              <SoundButton type="submit" variant="primary" soundType="success">
-                Save & Update Trainee
-              </SoundButton>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Modal: View Student Profile Details */}
-      {selectedStudent && (
-        <Modal
-          isOpen={!!selectedStudent}
-          onClose={() => setSelectedStudent(null)}
-          title={`Trainee Dossier: ${selectedStudent.full_name}`}
-          subtitle={`Roll: ${selectedStudent.roll_number} • ${selectedStudent.course_name}`}
-          maxWidth="3xl"
-        >
-          <div className="space-y-6">
-            <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-              <img
-                src={selectedStudent.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${selectedStudent.roll_number}`}
-                alt={selectedStudent.full_name}
-                className="w-16 h-16 rounded-full border-2 border-blue-600 object-cover"
-              />
-              <div>
-                <h3 className="text-lg font-black text-slate-900 dark:text-white">{selectedStudent.full_name}</h3>
-                <div className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                  Roll: {selectedStudent.roll_number} | BSAEU Reg: {selectedStudent.registration_number || 'N/A'}
+      <Modal isOpen={!!viewing} onClose={() => setViewing(null)} title={viewing?.full_name || ''}>
+        {viewing && (
+          <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['Roll Number', viewing.roll_number],
+                ['Registration No.', viewing.registration_number || '—'],
+                ['Course', `${viewing.course_name} (${viewing.course_code})`],
+                ['Semester', viewing.semester],
+                ['Session', viewing.academic_session],
+                ['Section', viewing.section],
+                ['Email', viewing.email],
+                ['Phone', viewing.phone],
+                ['Gender', viewing.gender],
+                ['Category', viewing.category],
+                ['Date of Birth', viewing.date_of_birth || '—'],
+                ['Guardian', `${viewing.guardian_name || '—'} ${viewing.guardian_phone || ''}`],
+                ['Status', viewing.status],
+              ].map(([k, v]) => (
+                <div key={String(k)} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800">
+                  <div className="text-[10px] text-slate-500 font-bold uppercase">{k}</div>
+                  <div className="font-bold break-all">{String(v)}</div>
                 </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <Badge status={selectedStudent.status} size="sm" />
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                    {selectedStudent.category} Category
-                  </span>
-                </div>
-              </div>
+              ))}
             </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 font-medium">Program</span>
-                <div className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">{selectedStudent.course_name}</div>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 font-medium">Semester & Session</span>
-                <div className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">
-                  Sem {selectedStudent.semester} ({selectedStudent.academic_session})
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 font-medium">Phone</span>
-                <div className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">{selectedStudent.phone || 'N/A'}</div>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 font-medium">Email</span>
-                <div className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 truncate">{selectedStudent.email}</div>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 font-medium">Guardian</span>
-                <div className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">{selectedStudent.guardian_name || 'N/A'}</div>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                <span className="text-slate-400 font-medium">Guardian Contact</span>
-                <div className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">{selectedStudent.guardian_phone || 'N/A'}</div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => {
-                  const current = selectedStudent;
-                  setSelectedStudent(null);
-                  handleOpenEdit(current);
-                }}
-                className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs flex items-center gap-1.5"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit This Trainee</span>
-              </button>
+            <div className="flex justify-end">
+              <SoundButton icon={<Pencil className="w-4 h-4" />} onClick={() => openEdit(viewing)}>Edit</SoundButton>
             </div>
           </div>
-        </Modal>
-      )}
+        )}
+      </Modal>
 
-      {/* Generated Student Access Credentials Modal */}
-      {createdCredentials && (
-        <Modal
-          isOpen={true}
-          onClose={() => setCreatedCredentials(null)}
-          title="Student Trainee Credentials Generated"
-          subtitle="Official Admission Onboarding Notice"
-          maxWidth="md"
-        >
-          <div className="space-y-4 text-xs">
-            <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300">
-              <span className="font-bold block">
-                Trainee Enrolled & Account Created Successfully!
-              </span>
-              <span className="text-[11px] block mt-0.5">
-                The trainee has been registered and admission welcome email dispatched via Resend.
-              </span>
+      <Modal isOpen={!!credentials} onClose={() => setCredentials(null)} title="Student Login Created">
+        {credentials && (
+          <div className="space-y-3 text-xs">
+            <p>Share these login details with <b>{credentials.name}</b>. They were also emailed.</p>
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 font-mono space-y-1">
+              <div>Email: {credentials.email}</div>
+              <div>Password: {credentials.password}</div>
             </div>
-
-            <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono">
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Trainee Name</span>
-                <span className="font-bold text-slate-900 dark:text-white font-sans">{createdCredentials.name}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Roll Number</span>
-                <span className="text-blue-600 dark:text-blue-400 font-bold">{createdCredentials.roll}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Registered Student Email</span>
-                <span className="text-slate-800 dark:text-slate-200 font-bold">{createdCredentials.email}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Temporary Security Password</span>
-                <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-700 mt-0.5">
-                  <span className="font-bold text-purple-600 dark:text-purple-400">{createdCredentials.password}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(
-                        `Roll: ${createdCredentials.roll}\nEmail: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`
-                      );
-                      setHasCopied(true);
-                      setTimeout(() => setHasCopied(false), 2000);
-                    }}
-                    className="flex items-center gap-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-sans font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200"
-                  >
-                    {hasCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                    <span>{hasCopied ? 'Copied' : 'Copy'}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-500 italic">
-              * The student can log in and update their password anytime through their student profile.
-            </p>
-
-            <div className="flex justify-end pt-2">
-              <SoundButton
-                onClick={() => setCreatedCredentials(null)}
-                variant="primary"
-                size="sm"
-              >
-                Close & Done
-              </SoundButton>
-            </div>
+            <SoundButton
+              icon={copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              onClick={() => {
+                navigator.clipboard.writeText(`Email: ${credentials.email}\nPassword: ${credentials.password}`);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
+            >
+              {copied ? 'Copied' : 'Copy'}
+            </SoundButton>
           </div>
-        </Modal>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

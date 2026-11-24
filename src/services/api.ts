@@ -13,7 +13,6 @@ import {
   StudyMaterial,
   AuditLog,
   LeaveApplication,
-  StudentFeedback,
   ClassAnnouncement,
 } from '../types';
 
@@ -97,6 +96,44 @@ export interface CalendarEvent {
   subject_code?: string | null;
   room?: string | null;
   description?: string | null;
+}
+
+export type MasterCategory = 'DEPARTMENT' | 'DESIGNATION' | 'QUALIFICATION' | 'SPECIALIZATION';
+
+export interface MasterItem {
+  id: string;
+  category: MasterCategory;
+  name: string;
+}
+
+export interface FeedbackForm {
+  id: string;
+  title: string;
+  description?: string;
+  course_code: string;
+  semester: number;
+  questions: string[];
+  deadline?: string | null;
+  is_open: boolean;
+  accepting: boolean;
+  response_count: number;
+  class_size: number;
+  submitted?: boolean;
+  subjects?: { subject_code: string; subject_title: string; faculty_name?: string }[];
+}
+
+export interface FeedbackReport {
+  form: FeedbackForm;
+  total_responses: number;
+  subjects: {
+    subject_code: string;
+    subject_title: string;
+    faculty_name?: string;
+    responses: number;
+    question_averages: number[];
+    overall_average: number;
+  }[];
+  comments: { text: string; created_at: string }[];
 }
 
 export interface StudentQuery {
@@ -234,15 +271,13 @@ class ApiClient {
     return this.request('/students/me');
   }
 
+  /** Server-side format + typo + domain + duplicate check. Pass excludeId when editing a record. */
   checkEmailAvailability(
     email: string,
-    type?: 'FACULTY' | 'STUDENT'
-  ): Promise<{ available: boolean; exists: boolean; role?: string; name?: string; detail: string }> {
-    const clean = email.trim().toLowerCase();
-    if (!clean || !clean.includes('@')) {
-      return Promise.resolve({ available: true, exists: false, detail: 'Enter a valid email address' });
-    }
-    return this.request(`/auth/check-email${qs({ email: clean, type })}`);
+    type?: 'FACULTY' | 'STUDENT',
+    excludeId?: string
+  ): Promise<{ available: boolean; valid: boolean; exists: boolean; detail: string; email?: string }> {
+    return this.request(`/auth/check-email${qs({ email: email.trim().toLowerCase(), type, exclude_id: excludeId })}`);
   }
 
   createStudent(data: Partial<Student>): Promise<Student & { generated_password?: string }> {
@@ -304,6 +339,10 @@ class ApiClient {
   async deleteCourse(id: string): Promise<boolean> {
     await this.request(`/academics/courses/${id}`, { method: 'DELETE' });
     return true;
+  }
+
+  getAcademicSessions(): Promise<{ id: string; label: string; start_year: number; end_year: number; is_current: boolean }[]> {
+    return this.request('/academics/sessions');
   }
 
   getSubjects(course_code?: string, semester?: number): Promise<Subject[]> {
@@ -383,12 +422,19 @@ class ApiClient {
     return this.request(`/examinations/marksheets/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
 
-  publishResults(courseCode: string, semester: number): Promise<{ message: string; modified_count: number }> {
-    return this.request(`/examinations/publish-results${qs({ course_code: courseCode, semester })}`, { method: 'POST' });
+  /** visible=true publishes results to students; false hides them again. */
+  publishResults(courseCode: string, semester: number, visible = true): Promise<{ message: string; modified_count: number }> {
+    return this.request(`/examinations/publish-results${qs({ course_code: courseCode, semester, visible: String(visible) })}`, {
+      method: 'POST',
+    });
   }
 
-  async downloadMarksheetPdf(marksheetId: string): Promise<Blob> {
-    const res = await fetch(`${BASE_URL}/examinations/marksheets/${marksheetId}/pdf`, {
+  downloadCertificatePdf(marksheetId: string): Promise<Blob> {
+    return this.downloadMarksheetPdf(marksheetId, 'certificate');
+  }
+
+  async downloadMarksheetPdf(marksheetId: string, kind: 'pdf' | 'certificate' = 'pdf'): Promise<Blob> {
+    const res = await fetch(`${BASE_URL}/examinations/marksheets/${marksheetId}/${kind}`, {
       headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
     });
     if (!res.ok) {
@@ -416,6 +462,23 @@ class ApiClient {
     return this.request('/fees/invoices');
   }
 
+  // --- MASTER DATA (departments, designations, qualifications, specializations) ---
+  getMasterData(category?: MasterCategory): Promise<MasterItem[]> {
+    return this.request(`/master-data${qs({ category })}`);
+  }
+
+  createMasterItem(category: MasterCategory, name: string): Promise<MasterItem> {
+    return this.request('/master-data', { method: 'POST', body: JSON.stringify({ category, name }) });
+  }
+
+  renameMasterItem(id: string, name: string): Promise<MasterItem> {
+    return this.request(`/master-data/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+  }
+
+  async deleteMasterItem(id: string): Promise<void> {
+    await this.request(`/master-data/${id}`, { method: 'DELETE' });
+  }
+
   // --- INSTITUTION SETTINGS ---
   async getCollegeProfile(): Promise<CollegeProfile> {
     const value = await this.request<Partial<CollegeProfile>>('/settings/college_profile');
@@ -426,12 +489,20 @@ class ApiClient {
     return this.request('/settings/college_profile', { method: 'PUT', body: JSON.stringify(data) });
   }
 
-  getMarksheetTemplate(): Promise<Record<string, any>> {
-    return this.request('/settings/marksheet_template');
+  /** kind = marksheet | certificate; courseCode for a course-specific design (empty = all courses). */
+  getTemplate(kind: 'marksheet' | 'certificate', courseCode?: string): Promise<Record<string, any>> {
+    return this.request(`/settings/${kind}_template${courseCode ? `:${courseCode}` : ''}`);
   }
 
-  updateMarksheetTemplate(data: Record<string, any>): Promise<Record<string, any>> {
-    return this.request('/settings/marksheet_template', { method: 'PUT', body: JSON.stringify(data) });
+  updateTemplate(kind: 'marksheet' | 'certificate', data: Record<string, any>, courseCode?: string): Promise<Record<string, any>> {
+    return this.request(`/settings/${kind}_template${courseCode ? `:${courseCode}` : ''}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  getMarksheetTemplate(): Promise<Record<string, any>> {
+    return this.getTemplate('marksheet');
   }
 
   // --- NOTICES ---
@@ -505,17 +576,32 @@ class ApiClient {
     });
   }
 
-  // --- FEEDBACK ---
-  getStudentFeedbacks(): Promise<StudentFeedback[]> {
-    return this.request('/feedback?limit=200');
+  // --- FEEDBACK CYCLES ---
+  getFeedbackForms(): Promise<FeedbackForm[]> {
+    return this.request('/feedback/forms');
   }
 
-  submitFeedback(data: Partial<StudentFeedback>): Promise<StudentFeedback> {
-    return this.request('/feedback', { method: 'POST', body: JSON.stringify(data) });
+  createFeedbackForm(data: Partial<FeedbackForm>): Promise<FeedbackForm> {
+    return this.request('/feedback/forms', { method: 'POST', body: JSON.stringify(data) });
   }
 
-  respondToFeedback(id: string, response: string): Promise<StudentFeedback> {
-    return this.request(`/feedback/${id}/respond`, { method: 'POST', body: JSON.stringify({ response }) });
+  updateFeedbackForm(id: string, data: Partial<FeedbackForm>): Promise<FeedbackForm> {
+    return this.request(`/feedback/forms/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteFeedbackForm(id: string): Promise<void> {
+    await this.request(`/feedback/forms/${id}`, { method: 'DELETE' });
+  }
+
+  submitFeedbackResponse(
+    id: string,
+    data: { ratings: { subject_code: string; answers: number[] }[]; comments?: string }
+  ): Promise<{ message: string }> {
+    return this.request(`/feedback/forms/${id}/submit`, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  getFeedbackReport(id: string): Promise<FeedbackReport> {
+    return this.request(`/feedback/forms/${id}/report`);
   }
 
   // --- CLASS ANNOUNCEMENTS & STUDENT QUERIES ---

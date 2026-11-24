@@ -19,6 +19,7 @@ import {
   MessageSquare,
   Megaphone,
   BarChart3,
+  Settings2,
 } from 'lucide-react';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
@@ -44,15 +45,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView }) =
         { id: 'assignments', label: 'Assignment Management', icon: ClipboardList },
         { id: 'communication', label: 'Announcements & Queries', icon: Megaphone },
         { id: 'examinations', label: 'Marks & Student Evaluation', icon: FileCheck2 },
-        { id: 'leave-management', label: 'Trainee Leave Requests', icon: CheckSquare },
-        { id: 'materials', label: 'Study Materials & Notes', icon: Library },
+        { id: 'leave-management', label: 'Student Leave Requests', icon: CheckSquare },
+        { id: 'materials', label: 'Daily Notes & Materials', icon: Library },
+        { id: 'feedback', label: 'My Feedback Report', icon: MessageSquare },
         { id: 'notices', label: 'Circulars & Notices', icon: Bell },
       ];
     }
 
     if (activeRole === 'STUDENT') {
       return [
-        { id: 'dashboard', label: 'Trainee Portal', icon: LayoutDashboard },
+        { id: 'dashboard', label: 'Student Portal', icon: LayoutDashboard },
         { id: 'materials', label: 'Study Materials & Notes', icon: Library },
         { id: 'examinations', label: 'Results & Marksheet', icon: FileCheck2 },
         { id: 'assignments', label: 'My Assignments', icon: ClipboardList },
@@ -80,6 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView }) =
       { id: 'feedback', label: 'Student Feedback Desk', icon: MessageSquare },
       { id: 'communication', label: 'Class Communication', icon: Megaphone },
       { id: 'analytics', label: 'Academic Analytics', icon: BarChart3 },
+      { id: 'master-data', label: 'Master Settings', icon: Settings2 },
       { id: 'excel-import', label: 'Excel Bulk Data Import', icon: FileSpreadsheet },
       { id: 'audit', label: 'Activity Logs & Audit', icon: History },
       { id: 'verify', label: 'Public Marksheet Verifier', icon: ShieldCheck },

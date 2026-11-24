@@ -51,7 +51,7 @@ export const LoginView: React.FC = () => {
     },
     STUDENT: {
       title: 'Student',
-      subtitle: 'Teacher Trainee & Academic Portal',
+      subtitle: 'Student & Academic Portal',
       emailPlaceholder: 'Enter trainee student email',
       buttonLabel: 'Sign in to Student Portal',
     },

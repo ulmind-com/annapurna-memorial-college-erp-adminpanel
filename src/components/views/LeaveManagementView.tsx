@@ -235,7 +235,7 @@ export const LeaveManagementView: React.FC = () => {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-extrabold">
-                <th className="py-3.5 px-4">Trainee</th>
+                <th className="py-3.5 px-4">Student</th>
                 <th className="py-3.5 px-4">Roll Number</th>
                 <th className="py-3.5 px-4">Leave Type</th>
                 <th className="py-3.5 px-4">Duration & Dates</th>
@@ -366,7 +366,7 @@ export const LeaveManagementView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Trainee Name</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Student Name</label>
               <input
                 type="text"
                 disabled
@@ -430,7 +430,7 @@ export const LeaveManagementView: React.FC = () => {
         isOpen={reviewModal.isOpen}
         onClose={() => setReviewModal({ isOpen: false, leave: null, action: 'APPROVED', remarks: '' })}
         title={`${reviewModal.action === 'APPROVED' ? 'Approve' : 'Reject'} Leave Application`}
-        subtitle={`Trainee: ${reviewModal.leave?.student_name} (${reviewModal.leave?.roll_number})`}
+        subtitle={`Student: ${reviewModal.leave?.student_name} (${reviewModal.leave?.roll_number})`}
         maxWidth="md"
       >
         <div className="space-y-4">

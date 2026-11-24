@@ -230,27 +230,8 @@ export const AcademicsView: React.FC = () => {
 
   const activeCourseObj = courses.find((c) => c.code === selectedCourse);
 
-  const isStudentInCourse = (s: any, c?: Course) => {
-    if (!c) return false;
-    const studentCourseCode = (s.course_code || s.course || '').trim().toUpperCase();
-    const targetCode = (c.code || '').trim().toUpperCase();
-    if (studentCourseCode && targetCode) {
-      if (studentCourseCode === targetCode) return true;
-      if (studentCourseCode.replace(/[^A-Z0-9]/g, '') === targetCode.replace(/[^A-Z0-9]/g, '')) return true;
-    }
-    const studentCourseName = (s.course_name || s.course || '').trim().toLowerCase();
-    const targetName = (c.name || '').trim().toLowerCase();
-    if (targetName && studentCourseName) {
-      if (studentCourseName === targetName) return true;
-      if (studentCourseName.includes(targetName) || targetName.includes(studentCourseName)) return true;
-    }
-    if (s.course_id && c.id && String(s.course_id) === String(c.id)) {
-      return true;
-    }
-    return false;
-  };
 
-  const enrolledStudents = activeCourseObj ? students.filter((s) => isStudentInCourse(s, activeCourseObj)) : [];
+  const enrolledStudents = activeCourseObj ? students.filter((s) => s.course_code === activeCourseObj.code) : [];
 
   const filteredEnrolledStudents = enrolledStudents.filter((s) => {
     if (!studentSearch.trim()) return true;
@@ -307,8 +288,8 @@ export const AcademicsView: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {courses.map((c) => {
           const isSelected = selectedCourse === c.code;
-          const courseTraineeCount = students.filter((s) => isStudentInCourse(s, c)).length;
-          const remainingSeats = Math.max(0, (c.max_intake || 100) - courseTraineeCount);
+          const courseStudentCount = c.enrolled_count ?? students.filter((s) => s.course_code === c.code).length;
+          const remainingSeats = c.remaining_seats ?? Math.max(0, (c.max_intake || 0) - courseStudentCount);
 
           return (
             <div
@@ -370,10 +351,10 @@ export const AcademicsView: React.FC = () => {
                   Semesters: <span className="font-bold text-slate-800 dark:text-slate-200">{c.total_semesters}</span>
                 </div>
                 <div className="text-slate-500 dark:text-slate-400">
-                  Total Intake: <span className="font-bold text-slate-800 dark:text-slate-200">{c.max_intake || 100} Seats</span>
+                  Total Intake: <span className="font-bold text-slate-800 dark:text-slate-200">{c.max_intake} Seats</span>
                 </div>
                 <div className="text-slate-500 dark:text-slate-400 text-right truncate">
-                  Enrolled: <span className="font-bold text-blue-600 dark:text-blue-400">{courseTraineeCount} Trainees</span>
+                  Enrolled: <span className="font-bold text-blue-600 dark:text-blue-400">{courseStudentCount} Students</span>
                 </div>
                 <div className="col-span-2 pt-1 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
                   <span className="text-slate-500 dark:text-slate-400">Remaining / Available:</span>
@@ -399,9 +380,14 @@ export const AcademicsView: React.FC = () => {
             <span className="text-slate-500 dark:text-slate-400">({activeCourseObj.affiliation})</span>
           </div>
           <div className="flex items-center gap-4 text-[11px]">
-            <span>Total Intake: <b className="text-slate-900 dark:text-white">{activeCourseObj.max_intake || 100} Seats</b></span>
-            <span>Enrolled: <b className="text-blue-600 dark:text-blue-400">{enrolledStudents.length} Trainees</b></span>
-            <span>Remaining: <b className="text-emerald-600 dark:text-emerald-400">{Math.max(0, (activeCourseObj.max_intake || 100) - enrolledStudents.length)} Vacant</b></span>
+            <span>Total Intake: <b className="text-slate-900 dark:text-white">{activeCourseObj.max_intake} Seats</b></span>
+            <span>Enrolled: <b className="text-blue-600 dark:text-blue-400">{enrolledStudents.length} Students</b></span>
+            <span>Remaining: <b className="text-emerald-600 dark:text-emerald-400">{Math.max(0, (activeCourseObj.max_intake || 0) - enrolledStudents.length)} Vacant</b></span>
+            {Array.from({ length: activeCourseObj.total_semesters || 0 }, (_, i) => i + 1).map((sem) => (
+              <span key={sem} className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+                Sem {sem}: <b>{enrolledStudents.filter((st) => Number(st.semester) === sem).length}</b>
+              </span>
+            ))}
           </div>
         </div>
       )}
@@ -431,7 +417,7 @@ export const AcademicsView: React.FC = () => {
           }`}
         >
           <GraduationCap className="w-4 h-4" />
-          Enrolled Trainees Roster ({enrolledStudents.length})
+          Enrolled Students Roster ({enrolledStudents.length})
         </button>
       </div>
 
@@ -546,7 +532,7 @@ export const AcademicsView: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 2: Enrolled Trainees Roster */}
+      {/* Tab 2: Enrolled Students Roster */}
       {activeTab === 'STUDENTS' && (
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in duration-200">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
@@ -557,11 +543,11 @@ export const AcademicsView: React.FC = () => {
                 </span>
                 <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
                   <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  Enrolled Trainees Roster
+                  Enrolled Students Roster
                 </h3>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {activeCourseObj ? activeCourseObj.name : selectedCourse} • {enrolledStudents.length} Enrolled Trainees
+                {activeCourseObj ? activeCourseObj.name : selectedCourse} • {enrolledStudents.length} Enrolled Students
               </p>
             </div>
 
@@ -587,7 +573,7 @@ export const AcademicsView: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-extrabold">
-                  <th className="py-3 px-4">Trainee</th>
+                  <th className="py-3 px-4">Student</th>
                   <th className="py-3 px-4">Roll Number</th>
                   <th className="py-3 px-4">Registration No</th>
                   <th className="py-3 px-4 text-center">Semester</th>

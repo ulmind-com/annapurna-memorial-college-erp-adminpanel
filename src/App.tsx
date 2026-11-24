@@ -9,6 +9,7 @@ import { TeacherDashboardView } from './components/views/TeacherDashboardView';
 import { SuperAdminDashboardView } from './components/views/SuperAdminDashboardView';
 import { StudentDashboardView } from './components/views/StudentDashboardView';
 import { MyClassesView } from './components/views/MyClassesView';
+import { MasterDataView } from './components/views/MasterDataView';
 import { ScheduleHubView } from './components/views/ScheduleHubView';
 import { LessonPlansView } from './components/views/LessonPlansView';
 import { AssignmentsView } from './components/views/AssignmentsView';
@@ -83,7 +84,9 @@ const AppContent: React.FC = () => {
       case 'students':
         return <StudentsView />;
       case 'faculty':
-        return <FacultyView />;
+        return <FacultyView onNavigate={setCurrentView} />;
+      case 'master-data':
+        return <MasterDataView />;
       case 'academics':
       case 'attendance':
         return <AcademicsView />;
