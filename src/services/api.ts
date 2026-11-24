@@ -54,8 +54,8 @@ export const INITIAL_REGISTERED_ACCOUNTS: RegisteredAccount[] = [
   {
     id: 'user-admin-1',
     email: 'admin@annapurnacollege.edu.in',
-    password: 'Admin@Amce2024#',
-    alt_password: 'Admin@123456',
+    password: 'Admin@123456',
+    alt_password: 'Admin@Amce2024#',
     role: 'SUPER_ADMIN',
     full_name: 'Dr. Arnab Senapati, Principal',
     avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
@@ -64,8 +64,8 @@ export const INITIAL_REGISTERED_ACCOUNTS: RegisteredAccount[] = [
   {
     id: 'user-admin-alias',
     email: 'admin@annapurnacollege.org',
-    password: 'Admin@Amce2024#',
-    alt_password: 'Admin@123456',
+    password: 'Admin@123456',
+    alt_password: 'Admin@Amce2024#',
     role: 'SUPER_ADMIN',
     full_name: 'Dr. Arnab Senapati, Principal',
     avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',

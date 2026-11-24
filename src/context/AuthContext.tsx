@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginAsDemo = async (role: ActiveRole) => {
     let email = 'admin@annapurnacollege.edu.in';
-    let pass = 'Admin@Amce2024#';
+    let pass = 'Admin@123456';
 
     if (role === 'TEACHER') {
       email = 'faculty.soumen@annapurnacollege.edu.in';
