@@ -236,19 +236,19 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
 
       {/* Trainee KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Attendance Compliance Meter */}
+        {/* Academic Enrollment Status */}
         <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Physical Attendance
+              Academic Status
             </span>
             <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
               <CheckCircle className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">88.3%</div>
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">Active</div>
           <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
-            Compliant (NCTE ≥ 75% rule satisfied)
+            Enrolled • Semester {student?.semester || 1}
           </div>
         </div>
 

@@ -79,9 +79,8 @@ const AppContent: React.FC = () => {
       case 'faculty':
         return <FacultyView />;
       case 'academics':
-        return <AcademicsView />;
       case 'attendance':
-        return <AttendanceView />;
+        return <AcademicsView />;
       case 'examinations':
         return <ExaminationsView />;
       case 'leave-management':

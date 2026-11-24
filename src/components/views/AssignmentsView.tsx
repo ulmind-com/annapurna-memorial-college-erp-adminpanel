@@ -22,56 +22,14 @@ interface AssignmentItem {
   status: string;
 }
 
-const DEFAULT_ASSIGNMENTS: AssignmentItem[] = [
-  {
-    id: 'ASN-01',
-    title: 'Micro-Teaching Lesson Plan File (Skill of Questioning)',
-    course: 'B.Ed. Semester 2',
-    courseCode: 'BED',
-    dueDate: '25 May 2026, 05:00 PM IST',
-    totalAssigned: 50,
-    submittedCount: 42,
-    pendingCount: 6,
-    overdueCount: 2,
-    maxMarks: 25,
-    weightage: 'Internal Assessment (BSAEU)',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'ASN-02',
-    title: 'Practicum: Case Study of a Child in Kakdwip Rural School',
-    course: 'B.Ed. Semester 1',
-    courseCode: 'BED',
-    dueDate: '28 May 2026, 05:00 PM IST',
-    totalAssigned: 50,
-    submittedCount: 38,
-    pendingCount: 12,
-    overdueCount: 0,
-    maxMarks: 50,
-    weightage: 'Course 1.1.1 EPC Practicum',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'ASN-03',
-    title: 'Foundational Numeracy Assessment Worksheet Design',
-    course: 'D.El.Ed. Semester 1',
-    courseCode: 'DELED',
-    dueDate: '20 May 2026, 11:59 PM IST',
-    totalAssigned: 50,
-    submittedCount: 48,
-    pendingCount: 1,
-    overdueCount: 1,
-    maxMarks: 20,
-    weightage: 'Formative CCE Task',
-    status: 'REVIEWING',
-  },
-];
+const DEFAULT_ASSIGNMENTS: AssignmentItem[] = [];
 
 export const AssignmentsView: React.FC = () => {
   const { playPop, playSuccess } = useSound();
   const [courses, setCourses] = useState<Course[]>([]);
   const [assignments, setAssignments] = useState<AssignmentItem[]>(() => {
-    return api.getCachedList<AssignmentItem>('amce_assignments', DEFAULT_ASSIGNMENTS);
+    const list = api.getCachedList<AssignmentItem>('amce_assignments', []);
+    return list.filter((a) => !['ASN-01', 'ASN-02', 'ASN-03', 'ASN-04', 'ASN-05'].includes(a.id));
   });
   const [search, setSearch] = useState('');
   const [courseFilter, setCourseFilter] = useState('ALL');

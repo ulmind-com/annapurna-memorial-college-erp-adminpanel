@@ -81,6 +81,10 @@ export class ExcelImporter {
               course_name:
                 course.toUpperCase() === 'DELED'
                   ? 'Diploma in Elementary Education (D.El.Ed.)'
+                  : course.toUpperCase() === 'BTECH'
+                  ? 'Bachelor of Technology (B.Tech)'
+                  : course.toUpperCase() === 'BA_ED'
+                  ? 'B.A. in Education (Honours)'
                   : 'Bachelor of Education (B.Ed.)',
               academic_session: session,
               semester: semester,

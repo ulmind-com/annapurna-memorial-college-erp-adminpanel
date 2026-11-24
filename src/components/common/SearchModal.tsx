@@ -37,7 +37,6 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onNav
     { title: 'Student Trainees', desc: 'Manage roll numbers, student roster, registration', view: 'students', icon: <Users className="w-4 h-4 text-emerald-500" /> },
     { title: 'Faculty & Mentors', desc: 'Faculty profiles, departmental rosters, teaching staff', view: 'faculty', icon: <Users className="w-4 h-4 text-purple-500" /> },
     { title: 'Examinations & Marksheet Pipeline', desc: 'Verify, approve, reject, publish semester marksheets', view: 'examinations', icon: <FileCheck className="w-4 h-4 text-amber-500" /> },
-    { title: 'Daily Attendance', desc: 'Take attendance, subject tracking, short-attendance flags', view: 'attendance', icon: <GraduationCap className="w-4 h-4 text-blue-500" /> },
     { title: 'Fee Management', desc: 'Student fee ledgers, payment collections, receipts', view: 'fees', icon: <CreditCard className="w-4 h-4 text-emerald-500" /> },
     { title: 'Excel Bulk Data Import', desc: 'Ingest student admissions & marks from .xlsx/.csv files', view: 'excel-import', icon: <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> },
     { title: 'Notices & Circulars', desc: 'Publish announcements, push notifications, emails', view: 'notices', icon: <Bell className="w-4 h-4 text-rose-500" /> },

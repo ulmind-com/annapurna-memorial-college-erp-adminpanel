@@ -138,28 +138,6 @@ export const INITIAL_REGISTERED_ACCOUNTS: RegisteredAccount[] = [
     roll_number: 'AMC-TR-2024-002',
   },
   {
-    id: 'user-stud-1',
-    email: 'ananya.das@student.annapurnacollege.org',
-    password: 'Student@Amce2024#',
-    alt_password: 'Student@123456',
-    role: 'STUDENT',
-    full_name: 'Ananya Das',
-    avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-    is_active: true,
-    roll_number: 'AMC-BED-2024-001',
-  },
-  {
-    id: 'user-stud-2',
-    email: 'souvik.halder@student.annapurnacollege.org',
-    password: 'Student@Amce2024#',
-    alt_password: 'Student@123456',
-    role: 'STUDENT',
-    full_name: 'Souvik Halder',
-    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-    is_active: true,
-    roll_number: 'AMC-BED-2024-002',
-  },
-  {
     id: 'user-stud-live',
     email: 'arnabsenapati573@gmail.com',
     password: 'Student@Amce2024#',
@@ -175,98 +153,18 @@ export const INITIAL_REGISTERED_ACCOUNTS: RegisteredAccount[] = [
 class ApiClient {
   private token: string | null = null;
   // Local reactive cache for mock fallback mode with local persistence
-  private students: Student[] = [...mockStudents];
-  private faculty: Faculty[] = [...mockFaculty];
+  private students: Student[] = [];
+  private faculty: Faculty[] = [];
   private courses: Course[] = [...mockCourses];
-  private subjects: Subject[] = [...mockSubjects];
-  private studyMaterials: StudyMaterial[] = [...mockStudyMaterials];
-  private marksheets = [...mockMarksheets];
-  private notices = [...mockNotices];
-  private invoices = [...mockInvoices];
-  private auditLogs = [...mockAuditLogs];
-  private leaveApplications: LeaveApplication[] = [
-    {
-      id: 'leave-1',
-      student_id: 'st-1',
-      student_name: 'Ananya Das',
-      roll_number: 'AMC-BED-2024-001',
-      course_code: 'BED',
-      semester: 1,
-      leave_type: 'MEDICAL',
-      start_date: '2026-11-20',
-      end_date: '2026-11-22',
-      total_days: 3,
-      reason: 'Suffering from seasonal viral fever and advised clinical bed rest.',
-      status: 'APPROVED',
-      applied_at: '2026-11-18T10:30:00Z',
-      reviewed_by: 'Dr. Debabrata Roy',
-      reviewed_at: '2026-11-18T14:15:00Z',
-      remarks: 'Approved. Submit medical prescription upon return.',
-    },
-    {
-      id: 'leave-2',
-      student_id: 'st-2',
-      student_name: 'Subhashish Mondal',
-      roll_number: 'AMC-BED-2024-002',
-      course_code: 'BED',
-      semester: 1,
-      leave_type: 'ACADEMIC',
-      start_date: '2026-11-25',
-      end_date: '2026-11-26',
-      total_days: 2,
-      reason: 'Attending State Pedagogy & B.Ed. Educational Conference at Kolkata.',
-      status: 'PENDING',
-      applied_at: '2026-11-19T09:00:00Z',
-    },
-  ];
-  private feedbacks: StudentFeedback[] = [
-    {
-      id: 'fb-1',
-      student_id: 'st-1',
-      student_name: 'Ananya Das',
-      roll_number: 'AMC-BED-2024-001',
-      course_code: 'BED',
-      semester: 1,
-      subject_code: 'BED-101',
-      faculty_name: 'Dr. Debabrata Roy',
-      category: 'TEACHING_METHODOLOGY',
-      rating: 5,
-      comments: 'Excellent explanation of cognitive development theory and case studies in B.Ed. classroom sessions.',
-      is_anonymous: false,
-      status: 'RESOLVED',
-      created_at: '2026-11-15T11:20:00Z',
-      admin_response: 'Appreciated! Noted by Academic Council.',
-    },
-    {
-      id: 'fb-2',
-      student_id: 'st-3',
-      student_name: 'Priyanka Halder',
-      roll_number: 'AMC-BED-2024-003',
-      course_code: 'BED',
-      semester: 1,
-      category: 'PRACTICUM_LAB',
-      rating: 4,
-      comments: 'Need more micro-teaching practice sessions before the final school internship starts.',
-      is_anonymous: true,
-      status: 'PENDING',
-      created_at: '2026-11-18T16:45:00Z',
-    },
-  ];
-  private announcements: ClassAnnouncement[] = [
-    {
-      id: 'ann-1',
-      faculty_id: 'fac-1',
-      faculty_name: 'Dr. Debabrata Roy',
-      course_code: 'BED',
-      semester: 1,
-      subject_code: 'BED-101',
-      batch: 'Section A',
-      title: 'Micro-Teaching Practicum Schedule Update',
-      message: 'All B.Ed. Semester 1 Trainees must submit their unit pedagogy lesson plan notebook by Friday.',
-      priority: 'IMPORTANT',
-      created_at: '2026-11-19T08:30:00Z',
-    },
-  ];
+  private subjects: Subject[] = [];
+  private studyMaterials: StudyMaterial[] = [];
+  private marksheets: any[] = [];
+  private notices: any[] = [];
+  private invoices: any[] = [];
+  private auditLogs: any[] = [];
+  private leaveApplications: LeaveApplication[] = [];
+  private feedbacks: StudentFeedback[] = [];
+  private announcements: ClassAnnouncement[] = [];
   private collegeProfile = {
     name: 'Annapurna Memorial College of Education',
     tagline: 'Premier Teacher Training & Pedagogy Institution',
@@ -291,7 +189,15 @@ class ApiClient {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed)) {
+            // Purge legacy mock entries
+            const cleaned = parsed.filter((item: any) => {
+              if (item?.roll_number && ['AMC-BED-2024-001', 'AMC-BED-2024-002', 'AMC-BED-2024-003', 'AMC-BED-2024-004', 'AMC-BED-2024-005', 'AMC-BED-2024-006'].includes(item.roll_number)) return false;
+              if (item?.full_name && ['Ananya Das', 'Souvik Halder', 'Rituparna Ghosh', 'Dr. Debabrata Roy', 'Prof. Mousumi Mukherjee'].includes(item.full_name)) return false;
+              return true;
+            });
+            return cleaned as T[];
+          }
         } catch {}
       }
     }
@@ -308,13 +214,13 @@ class ApiClient {
     if (typeof window !== 'undefined') {
       this.token = localStorage.getItem('annapurna_erp_token');
     }
-    this.students = this.getCachedList('annapurna_students', mockStudents);
-    this.faculty = this.getCachedList('annapurna_faculty', mockFaculty);
+    this.students = this.getCachedList('annapurna_students', []);
+    this.faculty = this.getCachedList('annapurna_faculty', []);
     this.courses = this.getCachedList('annapurna_courses', mockCourses);
-    this.subjects = this.getCachedList('annapurna_subjects', mockSubjects);
-    this.studyMaterials = this.getCachedList('annapurna_study_materials', mockStudyMaterials);
-    this.marksheets = this.getCachedList('annapurna_marksheets', mockMarksheets);
-    this.notices = this.getCachedList('annapurna_notices', mockNotices);
+    this.subjects = this.getCachedList('annapurna_subjects', []);
+    this.studyMaterials = this.getCachedList('annapurna_study_materials', []);
+    this.marksheets = this.getCachedList('annapurna_marksheets', []);
+    this.notices = this.getCachedList('annapurna_notices', []);
 
     // Background keep-alive worker: Prevents Render free-tier spin-down & keeps backend warm
     if (typeof window !== 'undefined') {
@@ -745,7 +651,7 @@ class ApiClient {
   async getCourses(): Promise<Course[]> {
     try {
       const res = await this.request<Course[]>('/academics/courses');
-      if (Array.isArray(res) && res.length > 0) {
+      if (Array.isArray(res)) {
         this.courses = res;
         this.setCachedList('annapurna_courses', res);
         return res;
@@ -823,7 +729,7 @@ class ApiClient {
     try {
       const qs = course_code ? `?course_code=${course_code}` : '';
       const res = await this.request<Subject[]>(`/academics/subjects${qs}`);
-      if (Array.isArray(res) && res.length > 0) {
+      if (Array.isArray(res)) {
         if (!course_code) {
           this.subjects = res;
           this.setCachedList('annapurna_subjects', res);
@@ -951,7 +857,7 @@ class ApiClient {
   async getAllMarksheets(): Promise<Marksheet[]> {
     try {
       const res = await this.request<Marksheet[]>('/examinations/marksheets');
-      if (Array.isArray(res) && res.length > 0) {
+      if (Array.isArray(res)) {
         this.marksheets = res;
         this.setCachedList('annapurna_marksheets', res);
         return res;
@@ -1193,13 +1099,13 @@ class ApiClient {
   async getNotices(): Promise<Notice[]> {
     try {
       const res = await this.request<Notice[]>('/notices');
-      if (Array.isArray(res) && res.length > 0) {
+      if (Array.isArray(res)) {
         this.notices = res;
         this.setCachedList('annapurna_notices', res);
         return res;
       }
     } catch (e) {
-      // Return cached notices or mock fallback
+      // Return cached notices or fallback
     }
     return this.getCachedList<Notice>('annapurna_notices', this.notices);
   }

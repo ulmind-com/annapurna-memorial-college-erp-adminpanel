@@ -60,37 +60,48 @@ export const ExcelImportView: React.FC<ExcelImportViewProps> = ({ onNavigate }) 
     if (!importResult || importResult.data.length === 0) return;
 
     setLoading(true);
-    try {
-      // Sequentially insert into api layer
-      for (const st of importResult.data) {
-        await api.createStudent(st);
-      }
+    let successCount = 0;
+    const errors: string[] = [];
 
+    for (const st of importResult.data) {
+      try {
+        await api.createStudent(st);
+        successCount++;
+      } catch (err: any) {
+        errors.push(`${st.full_name || 'Trainee'} (${st.roll_number}): ${err.message || 'Enrollment failed'}`);
+      }
+    }
+
+    setLoading(false);
+    if (successCount > 0) {
       playSuccess();
       setIsSuccess(true);
-      alert(`Success: ${importResult.data.length} trainees successfully imported and enrolled!`);
-    } catch (e: any) {
-      alert(e.message || 'Import submission error');
-    } finally {
-      setLoading(false);
+      alert(
+        `Success: ${successCount} trainee(s) successfully imported and enrolled into the database!${
+          errors.length > 0 ? `\n\nWarnings/Errors:\n${errors.join('\n')}` : ''
+        }`
+      );
+    } else {
+      playAlert();
+      alert(`Import failed:\n${errors.join('\n')}`);
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 text-slate-800 animate-in fade-in duration-300">
+    <div className="max-w-4xl mx-auto space-y-6 text-slate-800 dark:text-slate-100 animate-in fade-in duration-300">
       {/* Title */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wider">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
               Automated Spreadsheet Pipeline
             </span>
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1">
-            Excel & CSV Bulk Data Importer
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-1">
+            Excel &amp; CSV Bulk Data Importer
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Bulk-enroll B.Ed. & D.El.Ed. teacher trainees, validate column schema, and import directly without errors
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Bulk-enroll teacher trainees across all academic programs, validate column schema, and import directly into the database.
           </p>
         </div>
 
@@ -99,24 +110,24 @@ export const ExcelImportView: React.FC<ExcelImportViewProps> = ({ onNavigate }) 
           variant="outline"
           size="sm"
           soundType="haptic"
-          icon={<Download className="w-4 h-4 text-emerald-600" />}
+          icon={<Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
         >
           Download Excel Template (.xlsx)
         </SoundButton>
       </div>
 
       {/* Upload Drop Zone Card */}
-      <div className="p-8 rounded-3xl bg-white border-2 border-dashed border-blue-200 hover:border-blue-500 transition-colors shadow-xs text-center space-y-4">
-        <div className="inline-flex items-center justify-center p-4 rounded-2xl bg-blue-50 text-blue-600">
+      <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border-2 border-dashed border-blue-200 dark:border-blue-900/50 hover:border-blue-500 dark:hover:border-blue-400 transition-colors shadow-xs text-center space-y-4">
+        <div className="inline-flex items-center justify-center p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
           <FileSpreadsheet className="w-10 h-10" />
         </div>
 
         <div>
-          <h3 className="text-base font-bold text-slate-900">
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">
             Upload Trainee Spreadsheet (.xlsx, .xls, .csv)
           </h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-            Drag & drop your Excel file here or click below to browse. Automatic header matching resolves
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
+            Drag &amp; drop your Excel file here or click below to browse. Automatic header matching resolves
             Roll Numbers, Trainee Names, Email, Phone, Course, and Category without manual mapping.
           </p>
         </div>
@@ -139,19 +150,19 @@ export const ExcelImportView: React.FC<ExcelImportViewProps> = ({ onNavigate }) 
 
       {/* Import Preview Results */}
       {importResult && (
-        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-4 animate-in zoom-in-95 duration-200">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4 animate-in zoom-in-95 duration-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
               {importResult.success ? (
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               ) : (
-                <AlertCircle className="w-5 h-5 text-rose-600" />
+                <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
               )}
               <div>
-                <h3 className="text-sm font-bold text-slate-900">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                   Spreadsheet Validation: {importResult.importedCount} Trainees Detected
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Data format verified. Ready for automatic database enrollment.
                 </p>
               </div>
@@ -185,7 +196,7 @@ export const ExcelImportView: React.FC<ExcelImportViewProps> = ({ onNavigate }) 
 
           {/* Errors list if any */}
           {importResult.errors.length > 0 && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 space-y-1">
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-700 dark:text-rose-300 space-y-1">
               <div className="font-bold">Errors encountered during parsing:</div>
               {importResult.errors.map((err, i) => (
                 <div key={i}>• {err}</div>
@@ -197,7 +208,7 @@ export const ExcelImportView: React.FC<ExcelImportViewProps> = ({ onNavigate }) 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-wider text-[10px]">
+                <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 dark:text-slate-500 uppercase tracking-wider text-[10px]">
                   <th className="py-2.5 px-3">Roll Number</th>
                   <th className="py-2.5 px-3">Full Name</th>
                   <th className="py-2.5 px-3">Email Address</th>
@@ -207,20 +218,20 @@ export const ExcelImportView: React.FC<ExcelImportViewProps> = ({ onNavigate }) 
                   <th className="py-2.5 px-3">Guardian</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {importResult.data.map((st, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-3 font-mono font-bold text-blue-600">{st.roll_number}</td>
-                    <td className="py-2.5 px-3 font-semibold text-slate-900">{st.full_name}</td>
-                    <td className="py-2.5 px-3 text-slate-500">{st.email}</td>
-                    <td className="py-2.5 px-3 font-medium text-slate-700">{st.course_code}</td>
-                    <td className="py-2.5 px-3 text-slate-600">{st.academic_session}</td>
+                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">{st.roll_number}</td>
+                    <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-slate-100">{st.full_name}</td>
+                    <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400">{st.email}</td>
+                    <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-300">{st.course_code}</td>
+                    <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">{st.academic_session}</td>
                     <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 font-bold text-slate-700">
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-200">
                         {st.category}
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 text-slate-600">{st.guardian_name}</td>
+                    <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">{st.guardian_name}</td>
                   </tr>
                 ))}
               </tbody>

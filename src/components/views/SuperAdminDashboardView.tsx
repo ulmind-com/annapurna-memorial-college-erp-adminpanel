@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   GraduationCap,
   Users,
@@ -15,7 +15,6 @@ import {
   Phone,
   School,
   Award,
-  CalendarCheck,
   MessageSquare,
   Star,
   ArrowRight,
@@ -74,44 +73,48 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [profileFormData, setProfileFormData] = useState(collegeProfile);
 
-  // Subject Performance & Pass Rates Data (B.Ed. Semester 1)
-  const subjectPerformance = [
-    { subject: 'BED-101', name: 'Childhood & Dev', passRate: 98, avgMarks: 82 },
-    { subject: 'BED-102', name: 'Contemp. India', passRate: 94, avgMarks: 76 },
-    { subject: 'BED-103', name: 'Lang Across Curr', passRate: 100, avgMarks: 85 },
-    { subject: 'BED-104', name: 'Disciplines & Ped', passRate: 96, avgMarks: 79 },
-    { subject: 'BED-105', name: 'EPC-1 Drama & Art', passRate: 100, avgMarks: 91 },
-  ];
+  // Dynamic Subject Performance & Pass Rates Data derived from actual marksheets
+  const subjectPerformance = useMemo(() => {
+    if (!marksheets || marksheets.length === 0) return [];
+    const subjMap: Record<string, { totalMarks: number; count: number; passCount: number; name: string }> = {};
+    marksheets.forEach((ms) => {
+      ((ms.subject_scores || (ms as any).subjects || []) as any[]).forEach((s: any) => {
+        const code = s.subject_code || s.code || 'SUBJ';
+        const name = s.subject_name || s.title || code;
+        const total = (Number(s.theory_marks) || 0) + (Number(s.practical_marks) || 0);
+        const max = Number(s.full_marks) || 100;
+        const percentage = max > 0 ? (total / max) * 100 : total;
+        if (!subjMap[code]) {
+          subjMap[code] = { totalMarks: 0, count: 0, passCount: 0, name };
+        }
+        subjMap[code].totalMarks += percentage;
+        subjMap[code].count += 1;
+        if (percentage >= 40) subjMap[code].passCount += 1;
+      });
+    });
+    return Object.entries(subjMap).map(([code, data]) => ({
+      subject: code,
+      name: data.name,
+      passRate: data.count > 0 ? Math.round((data.passCount / data.count) * 100) : 0,
+      avgMarks: data.count > 0 ? Math.round(data.totalMarks / data.count) : 0,
+    }));
+  }, [marksheets]);
 
   // Dynamic Program Enrollment Breakdown from active courses & registered students
   const palette = ['#2563eb', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4'];
-  const totalCapacity = courses.reduce((acc, c) => acc + (c.max_intake || 50), 0) || 190;
-  const enrollmentBreakdown = courses.length > 0
-    ? courses.map((c, i) => {
-        const studentCount = students.filter((s) => s.course_code === c.code).length;
-        return {
-          name: `${c.name} (${c.code})`,
-          value: studentCount > 0 ? studentCount : (c.max_intake || 50),
-          color: palette[i % palette.length],
-        };
-      })
-    : [
-        { name: 'B.Ed. (2-Year)', value: 100, color: '#2563eb' },
-        { name: 'D.El.Ed. (2-Year)', value: 50, color: '#10b981' },
-        { name: 'B.A. Education', value: 40, color: '#8b5cf6' },
-      ];
-
-  // Dynamic Attendance Statistics (NCTE 75% Rule Compliance)
-  const totalTrainees = students.length || 128;
-  const shortCount = Math.round(totalTrainees * 0.05);
-  const ncteCompliant = totalTrainees - shortCount;
-  const attendanceMetrics = {
-    overallPercentage: 88.6,
-    totalTrainees,
-    ncteCompliant,
-    shortAttendance: shortCount,
-    complianceRate: totalTrainees > 0 ? Number(((ncteCompliant / totalTrainees) * 100).toFixed(1)) : 100,
-  };
+  const totalCapacity = courses.reduce((acc, c) => acc + (c.max_intake || 0), 0);
+  const enrollmentBreakdown = courses.map((c, i) => {
+    const studentCount = students.filter(
+      (s) => (s.course_code || '').trim().toUpperCase() === (c.code || '').trim().toUpperCase()
+    ).length;
+    return {
+      name: `${c.name} (${c.code})`,
+      value: studentCount > 0 ? studentCount : (c.max_intake || 0),
+      enrolled: studentCount,
+      intake: c.max_intake || 0,
+      color: palette[i % palette.length],
+    };
+  });
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -517,35 +520,43 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
             </div>
 
             {/* Recharts Bar Chart */}
-            <div className="w-full h-64 pt-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={subjectPerformance} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                  <XAxis dataKey="subject" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#0f172a',
-                      borderRadius: '12px',
-                      border: '1px solid #1e293b',
-                      color: '#f8fafc',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Bar
-                    dataKey="avgMarks"
-                    name="Class Average Mark (%)"
-                    fill="#3b82f6"
-                    radius={[6, 6, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="passRate"
-                    name="Pass Rate (%)"
-                    fill="#10b981"
-                    radius={[6, 6, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="w-full h-64 pt-2 flex items-center justify-center">
+              {subjectPerformance.length === 0 ? (
+                <div className="text-center p-6 space-y-2">
+                  <Award className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+                  <p className="text-xs font-bold text-slate-600 dark:text-slate-300">No Examination Marks Recorded</p>
+                  <p className="text-[11px] text-slate-400">Publish exam marksheets to generate performance metrics.</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={subjectPerformance} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                    <XAxis dataKey="subject" tick={{ fontSize: 11, fill: '#64748b' }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#0f172a',
+                        borderRadius: '12px',
+                        border: '1px solid #1e293b',
+                        color: '#f8fafc',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                    <Bar
+                      dataKey="avgMarks"
+                      name="Class Average Mark (%)"
+                      fill="#3b82f6"
+                      radius={[6, 6, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="passRate"
+                      name="Pass Rate (%)"
+                      fill="#10b981"
+                      radius={[6, 6, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         </div>
@@ -558,11 +569,11 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
                 Program Enrollment Quota
               </h3>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                100% Filled
+                {totalCapacity > 0 ? `${Math.round((students.length / totalCapacity) * 100)}% Enrolled` : '0 Enrolled'}
               </span>
             </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-              NCTE Approved Teacher Training Intake Breakdown
+              Approved Academic Programs Intake Breakdown
             </p>
           </div>
 
@@ -570,7 +581,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={enrollmentBreakdown}
+                  data={enrollmentBreakdown.length > 0 ? enrollmentBreakdown : [{ name: 'None', value: 1, color: '#94a3b8' }]}
                   innerRadius={55}
                   outerRadius={80}
                   paddingAngle={5}
@@ -600,7 +611,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
                   {e.name}
                 </span>
                 <span className="font-extrabold text-slate-900 dark:text-white">
-                  {e.value} seats ({Math.round((e.value / totalCapacity) * 100)}%)
+                  {e.enrolled} / {e.intake} seats ({totalCapacity > 0 ? Math.round((e.enrolled / totalCapacity) * 100) : 0}%)
                 </span>
               </div>
             ))}
@@ -617,79 +628,8 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
         </div>
       </div>
 
-      {/* Row 3: Institutional Governance & Monitoring Desks (Attendance, Leave Sanctions, Student Feedback) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Attendance & NCTE 75% Compliance Meter */}
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-4">
-          <div className="pb-3 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <CalendarCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                Trainee Attendance Health
-              </h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                NCTE 75% Rule
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Semester examination eligibility monitoring
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-3xl font-black text-slate-900 dark:text-white">
-                {attendanceMetrics.overallPercentage}%
-              </div>
-              <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold mt-1">
-                College-wide Attendance
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-sm font-black text-slate-900 dark:text-white">
-                {attendanceMetrics.ncteCompliant} / {attendanceMetrics.totalTrainees}
-              </div>
-              <div className="text-[10px] text-slate-500 font-medium">Eligible for Exam</div>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs font-semibold">
-              <span className="text-slate-600 dark:text-slate-300">Compliance Rate</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                {attendanceMetrics.complianceRate}%
-              </span>
-            </div>
-            <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
-              <div
-                className="bg-emerald-500 h-full"
-                style={{ width: `${attendanceMetrics.complianceRate}%` }}
-              />
-              <div
-                className="bg-amber-500 h-full"
-                style={{ width: `${100 - attendanceMetrics.complianceRate}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-              <span className="text-amber-800 dark:text-amber-300 font-semibold text-[11px]">
-                {attendanceMetrics.shortAttendance} Trainees with &lt;75% Attendance
-              </span>
-            </div>
-            <SoundButton
-              onClick={() => onNavigate('attendance')}
-              size="sm"
-              variant="outline"
-              className="text-[10px] py-1 px-2"
-            >
-              Audit
-            </SoundButton>
-          </div>
-        </div>
-
+      {/* Row 3: Institutional Governance & Monitoring Desks (Leave Sanctions, Student Feedback) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Trainee Leave Application Sanction Desk */}
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-4">
           <div className="pb-3 border-b border-slate-100 dark:border-slate-800">

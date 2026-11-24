@@ -127,7 +127,6 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
     { label: 'Class Roster', view: 'my-classes', icon: Users },
     { label: 'Timetable', view: 'timetable', icon: Calendar },
     { label: 'Lesson Plans', view: 'lesson-plans', icon: BookOpen },
-    { label: 'Attendance', view: 'attendance', icon: CheckCircle },
     { label: 'Assignments', view: 'assignments', icon: FileText },
     { label: 'Study Notes Vault', view: 'materials', icon: Library },
     { label: 'Results & Marks', view: 'examinations', icon: FileCheck2 },
@@ -138,7 +137,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
   const riskAlerts = students.slice(0, 3).map((st, i) => ({
     name: `${st.full_name} (${st.course_code} Sem ${st.semester})`,
     reason: i === 0
-      ? 'Low practicum lesson plan submissions (68% attendance)'
+      ? 'Low practicum lesson plan submissions (pending review)'
       : i === 1
       ? 'Requires assessment consultation for pedagogy theory'
       : 'Micro-teaching simulation portfolio file pending review',
@@ -490,7 +489,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
             <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-sm font-bold text-slate-900">Upcoming Activities</h3>
-                <span className="text-xs font-medium text-blue-600 cursor-pointer" onClick={() => onNavigate('attendance')}>
+                <span className="text-xs font-medium text-blue-600 cursor-pointer" onClick={() => onNavigate('timetable')}>
                   View All
                 </span>
               </div>
