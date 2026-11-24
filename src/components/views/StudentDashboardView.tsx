@@ -17,11 +17,14 @@ import {
   Tag,
   Bell,
   AlertCircle,
+  Printer,
+  CheckCircle2,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { Marksheet, Student, StudyMaterial, LeaveApplication, Subject, Notice } from '../../types';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
+import { Modal } from '../common/Modal';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import collegeLogo from '../../assets/logo.png';
@@ -38,6 +41,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
   const [leaves, setLeaves] = useState<LeaveApplication[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
   const { playSuccess, playHaptic, playPop } = useSound();
 
   useEffect(() => {
@@ -64,15 +68,16 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
   useEffect(() => {
     const loadStudentData = async () => {
       try {
-        // 1. Fetch student's record matching email or name or roll
+        // 1. Fetch student's record matching entity_id, email, roll, or name
         const studentRes = await api.getStudents();
         const found =
           studentRes.items.find(
             (s) =>
+              (user?.entity_id && (s.id === user.entity_id || (s as any)._id === user.entity_id)) ||
               (user?.email && s.email.toLowerCase() === user.email.toLowerCase()) ||
               (user?.roll_number && s.roll_number === user.roll_number) ||
               (user?.full_name && s.full_name.toLowerCase() === user.full_name.toLowerCase())
-          ) || studentRes.items[0];
+          ) || null;
 
         if (found) {
           setStudent(found);
@@ -80,13 +85,14 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
 
         // 2. Fetch marksheet
         const msList = await api.getAllMarksheets();
-        const studentRoll = found?.roll_number || user?.roll_number || 'AMC-TR-2024';
+        const studentRoll = found?.roll_number || user?.roll_number;
         const myMarksheet = msList.find(
           (m) =>
-            m.roll_number.toLowerCase() === studentRoll.toLowerCase() ||
-            m.student_name.toLowerCase() === (user?.full_name || '').toLowerCase()
-        ) || msList[0];
-        setMarksheet(myMarksheet || null);
+            (studentRoll && m.roll_number.toLowerCase() === studentRoll.toLowerCase()) ||
+            (found && m.student_id === found.id) ||
+            (user?.full_name && m.student_name.toLowerCase() === user.full_name.toLowerCase())
+        ) || null;
+        setMarksheet(myMarksheet && myMarksheet.status === 'PUBLISHED' ? myMarksheet : null);
 
         // 3. Fetch Study Materials uploaded by teachers
         const courseCode = found?.course_code || 'BED';
@@ -153,11 +159,11 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
     }
   };
 
-  const displayName = user?.full_name || student?.full_name || 'Teacher Trainee';
-  const displayRoll = student?.roll_number || user?.roll_number || 'AMC-TR-2024';
-  const displayCourse = student?.course_name || 'Bachelor of Education (B.Ed.)';
+  const displayName = student?.full_name || user?.full_name || 'Teacher Trainee';
+  const displayRoll = student?.roll_number || user?.roll_number || 'Roll Pending';
+  const displayCourse = student?.course_name || (student?.course_code ? `Program: ${student.course_code}` : 'Undergraduate Trainee');
   const displaySemester = student?.semester || 1;
-  const displayReg = student?.registration_number || `BSAEU-2024-${displayRoll.slice(-5)}`;
+  const displayReg = student?.registration_number || 'Registration Pending';
   const displayAvatar =
     user?.avatar_url ||
     student?.avatar_url ||
@@ -461,16 +467,16 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
         )}
       </div>
 
-      {/* Certified Marksheet Card */}
-      {marksheet && (
+      {/* Certified Marksheet & Certificate Card */}
+      {marksheet ? (
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
             <div>
               <div className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                Baba Saheb Ambedkar Education University (BSAEU)
+                Annapurna Memorial College Examination Cell
               </div>
               <h3 className="text-lg font-black text-slate-900 dark:text-white mt-0.5">
-                Official Statement of Marks & Grades ({displayCourse} Sem {displaySemester})
+                Official Statement of Marks & Evaluation ({displayCourse} Sem {displaySemester})
               </h3>
               <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
                 <span>
@@ -483,6 +489,18 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
 
             <div className="flex items-center gap-2">
               <Badge status={marksheet.status} />
+              <SoundButton
+                onClick={() => {
+                  playPop();
+                  setIsCertModalOpen(true);
+                }}
+                size="sm"
+                variant="secondary"
+                soundType="pop"
+                icon={<Award className="w-3.5 h-3.5 text-amber-500" />}
+              >
+                View Certificate
+              </SoundButton>
               <SoundButton
                 onClick={handleDownloadPdf}
                 size="sm"
@@ -518,13 +536,13 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
                     </td>
                     <td className="py-3 px-3 text-center font-medium">{sc.credits}</td>
                     <td className="py-3 px-3 text-center text-slate-700 dark:text-slate-300 font-medium">
-                      {sc.theory_obtained} / {sc.max_theory}
+                      {sc.theory_obtained ?? sc.internal_marks} / {sc.max_theory ?? 70}
                     </td>
                     <td className="py-3 px-3 text-center text-slate-700 dark:text-slate-300 font-medium">
-                      {sc.practical_obtained} / {sc.max_practical}
+                      {sc.practical_obtained ?? sc.external_marks} / {sc.max_practical ?? 30}
                     </td>
                     <td className="py-3 px-3 text-center font-bold text-slate-900 dark:text-white">
-                      {sc.total_obtained} / {sc.max_marks}
+                      {sc.total_obtained} / {sc.total_maximum || sc.max_marks || 100}
                     </td>
                     <td className="py-3 px-3 text-center font-extrabold text-blue-600 dark:text-blue-400">
                       {sc.grade_point}
@@ -544,7 +562,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
             <div>
               <span className="text-slate-500 dark:text-slate-400">Total Marks Obtained: </span>
               <b className="text-slate-900 dark:text-white text-sm">
-                {marksheet.total_marks_obtained} / {marksheet.grand_max_marks} ({marksheet.overall_percentage}%)
+                {marksheet.total_marks_obtained} / {marksheet.grand_max_marks || 500} ({marksheet.overall_percentage || marksheet.percentage}%)
               </b>
             </div>
             <div>
@@ -557,6 +575,105 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
             </div>
           </div>
         </div>
+      ) : (
+        <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs text-center space-y-3">
+          <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 mx-auto flex items-center justify-center">
+            <FileCheck2 className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+            Semester Examination Results & Certificate
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+            Your semester evaluation records for <b className="text-slate-800 dark:text-slate-200">{displayCourse}</b> are currently being compiled or pending publication by the Examination Cell.
+          </p>
+          <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900">
+            Status: Evaluation / Publication Pending
+          </span>
+        </div>
+      )}
+
+      {/* Modal: Official Digital Certificate */}
+      {marksheet && (
+        <Modal
+          isOpen={isCertModalOpen}
+          onClose={() => setIsCertModalOpen(false)}
+          title="Digital Academic Certificate"
+          subtitle="Annapurna Memorial College of Education"
+          maxWidth="2xl"
+        >
+          <div className="space-y-6">
+            <div className="p-8 border-4 border-double border-amber-600/40 rounded-3xl bg-gradient-to-b from-amber-50/20 via-white to-amber-50/20 text-center relative overflow-hidden">
+              <div className="w-16 h-16 rounded-full border border-blue-600/30 p-1 bg-white shadow-sm mx-auto flex items-center justify-center mb-3">
+                <img src={collegeLogo} alt="Logo" className="w-full h-full object-contain" />
+              </div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
+                Annapurna Memorial College of Education
+              </h2>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Kashinagar, South 24 Parganas, West Bengal • Affiliated & Approved Higher Education Institution
+              </p>
+
+              <div className="my-6">
+                <span className="px-4 py-1.5 rounded-full text-xs font-black bg-amber-100 text-amber-800 uppercase tracking-widest border border-amber-300">
+                  Certificate of Academic Achievement
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed max-w-lg mx-auto">
+                This is to officially certify that
+              </p>
+              <h3 className="text-xl font-black text-blue-900 dark:text-blue-400 my-2">
+                {displayName}
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed max-w-lg mx-auto">
+                Roll Number: <b className="font-mono text-slate-900">{displayRoll}</b> | Registration No: <b className="font-mono text-slate-900">{displayReg}</b> has successfully cleared and completed the examination for
+              </p>
+              <h4 className="text-base font-bold text-slate-900 mt-2">
+                {displayCourse} (Semester {displaySemester})
+              </h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Securing a Grade Point Average of <b className="text-blue-600 text-sm">{marksheet.sgpa} SGPA</b> with Overall Classification: <b className="text-emerald-600 text-sm">{marksheet.result_status}</b>.
+              </p>
+
+              <div className="mt-8 pt-6 border-t border-slate-200 flex items-center justify-between text-left text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg border border-slate-200 bg-white">
+                    <QrCode className="w-8 h-8 text-slate-700" />
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-mono">
+                    HASH: {marksheet.qr_code_hash}<br />
+                    STATUS: DIGITALLY VERIFIED
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="font-bold text-slate-900">Dr. Arnab Senapati</div>
+                  <div className="text-[10px] text-slate-500">Principal & Chief Academic Officer</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <SoundButton
+                type="button"
+                onClick={() => setIsCertModalOpen(false)}
+                variant="secondary"
+                size="sm"
+              >
+                Close
+              </SoundButton>
+              <SoundButton
+                type="button"
+                onClick={() => window.print()}
+                variant="primary"
+                size="sm"
+                icon={<Printer className="w-3.5 h-3.5" />}
+              >
+                Print Certificate
+              </SoundButton>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Trainee's Schedule derived from Curriculum */}

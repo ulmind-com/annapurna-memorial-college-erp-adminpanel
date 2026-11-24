@@ -35,7 +35,7 @@ import { SoundButton } from '../common/SoundButton';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
-import { Course, Student, Notice, StudyMaterial } from '../../types';
+import { Course, Student, Notice, StudyMaterial, Faculty } from '../../types';
 import collegeLogo from '../../assets/logo.png';
 
 interface TeacherDashboardViewProps {
@@ -51,6 +51,7 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
   const [students, setStudents] = useState<Student[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
+  const [facultyProfile, setFacultyProfile] = useState<Faculty | null>(null);
 
   useEffect(() => {
     const handleNoticeCreated = (e: any) => {
@@ -76,22 +77,31 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
   useEffect(() => {
     const loadTeacherData = async () => {
       try {
-        const [cList, sRes, nList, mList] = await Promise.all([
+        const [cList, sRes, nList, mList, facRes] = await Promise.all([
           api.getCourses(),
           api.getStudents(),
           api.getNotices(),
           api.getStudyMaterials(),
+          api.getFaculty(),
         ]);
         setCourses(cList);
         setStudents(sRes.items);
         setNotices(nList);
         setMaterials(mList);
+
+        const myFac = facRes.items.find(
+          (f) =>
+            (user?.email && f.email.toLowerCase() === user.email.toLowerCase()) ||
+            (user?.entity_id && (f.id === user.entity_id || (f as any)._id === user.entity_id)) ||
+            (user?.full_name && f.full_name.toLowerCase() === user.full_name.toLowerCase())
+        );
+        if (myFac) setFacultyProfile(myFac);
       } catch (err) {
         console.error('Error loading teacher dashboard data:', err);
       }
     };
     loadTeacherData();
-  }, []);
+  }, [user]);
 
   // Dynamically derive student performance bar chart data from active courses
   const performanceData = courses.length > 0
@@ -232,19 +242,33 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
                   </div>
                 </div>
 
-                <div className="space-y-1.5 text-left">
-                  <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                    Good morning, {user?.full_name ? user.full_name : 'Faculty Member'}!
-                  </h1>
-                  <p className="text-xs font-medium text-slate-500">
-                    Empower minds. Inspire futures.
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    You have <b className="text-blue-600">3 classes today</b> and{' '}
-                    <b className="text-blue-600">12 pending tasks</b>.
-                  </p>
+                <div className="space-y-2 text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-600 text-white uppercase tracking-wider">
+                      {facultyProfile?.designation || 'Faculty Member'}
+                    </span>
+                    <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-100/70 dark:bg-blue-950 px-2 py-0.5 rounded-md">
+                      ID: {facultyProfile?.employee_id || 'AMC-FAC'}
+                    </span>
+                  </div>
 
-                  <div className="pt-2">
+                  <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                    {facultyProfile?.full_name || user?.full_name || 'Faculty Member'}
+                  </h1>
+
+                  <div className="text-xs text-slate-600 dark:text-slate-300 font-medium flex flex-wrap items-center gap-2">
+                    <span><b>Dept:</b> {facultyProfile?.department || 'Department of Teacher Education'}</span>
+                    <span>•</span>
+                    <span><b>Qual:</b> {facultyProfile?.qualification || 'Post Graduate / Doctorate'}</span>
+                    {facultyProfile?.specialization && (
+                      <>
+                        <span>•</span>
+                        <span><b>Spec:</b> {facultyProfile.specialization}</span>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="pt-2 flex flex-wrap items-center gap-2">
                     <SoundButton
                       onClick={() => onNavigate('my-classes')}
                       variant="primary"
@@ -252,7 +276,17 @@ export const TeacherDashboardView: React.FC<TeacherDashboardViewProps> = ({ onNa
                       soundType="haptic"
                       icon={<ArrowRight className="w-3.5 h-3.5" />}
                     >
-                      View My Classes
+                      View Assigned Classes
+                    </SoundButton>
+
+                    <SoundButton
+                      onClick={() => onNavigate('materials')}
+                      variant="secondary"
+                      size="sm"
+                      soundType="pop"
+                      icon={<BookOpen className="w-3.5 h-3.5" />}
+                    >
+                      Upload Daily Notes & Study Material
                     </SoundButton>
                   </div>
                 </div>

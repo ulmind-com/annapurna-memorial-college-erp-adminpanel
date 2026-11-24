@@ -305,6 +305,7 @@ export const AcademicsView: React.FC = () => {
         {courses.map((c) => {
           const isSelected = selectedCourse === c.code;
           const courseTraineeCount = students.filter((s) => isStudentInCourse(s, c)).length;
+          const remainingSeats = Math.max(0, (c.max_intake || 100) - courseTraineeCount);
 
           return (
             <div
@@ -366,16 +367,41 @@ export const AcademicsView: React.FC = () => {
                   Semesters: <span className="font-bold text-slate-800 dark:text-slate-200">{c.total_semesters}</span>
                 </div>
                 <div className="text-slate-500 dark:text-slate-400">
-                  Intake: <span className="font-bold text-slate-800 dark:text-slate-200">{c.max_intake} Trainees</span>
+                  Total Intake: <span className="font-bold text-slate-800 dark:text-slate-200">{c.max_intake || 100} Seats</span>
                 </div>
                 <div className="text-slate-500 dark:text-slate-400 text-right truncate">
                   Enrolled: <span className="font-bold text-blue-600 dark:text-blue-400">{courseTraineeCount} Trainees</span>
+                </div>
+                <div className="col-span-2 pt-1 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 dark:text-slate-400">Remaining / Available:</span>
+                  <span className={`font-mono font-bold ${
+                    remainingSeats <= 5 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                  }`}>
+                    {remainingSeats} Vacant Seats
+                  </span>
                 </div>
               </div>
             </div>
           );
         })}
       </div>
+
+      {activeCourseObj && (
+        <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-lg bg-blue-600 text-white font-mono font-bold text-[11px]">
+              {activeCourseObj.code}
+            </span>
+            <span className="font-bold text-slate-800 dark:text-slate-100">{activeCourseObj.name}</span>
+            <span className="text-slate-500 dark:text-slate-400">({activeCourseObj.affiliation})</span>
+          </div>
+          <div className="flex items-center gap-4 text-[11px]">
+            <span>Total Intake: <b className="text-slate-900 dark:text-white">{activeCourseObj.max_intake || 100} Seats</b></span>
+            <span>Enrolled: <b className="text-blue-600 dark:text-blue-400">{enrolledStudents.length} Trainees</b></span>
+            <span>Remaining: <b className="text-emerald-600 dark:text-emerald-400">{Math.max(0, (activeCourseObj.max_intake || 100) - enrolledStudents.length)} Vacant</b></span>
+          </div>
+        </div>
+      )}
 
       {/* Program Details: Tab Bar */}
       <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">

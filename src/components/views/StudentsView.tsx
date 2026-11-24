@@ -49,6 +49,7 @@ export const StudentsView: React.FC = () => {
 
   // Form State for New Student
   const [newRoll, setNewRoll] = useState('');
+  const [newRegNumber, setNewRegNumber] = useState('');
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -66,6 +67,7 @@ export const StudentsView: React.FC = () => {
   // Form State for Editing Student
   const [editName, setEditName] = useState('');
   const [editRoll, setEditRoll] = useState('');
+  const [editRegNumber, setEditRegNumber] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editCourse, setEditCourse] = useState('BED');
@@ -73,6 +75,10 @@ export const StudentsView: React.FC = () => {
   const [editCategory, setEditCategory] = useState('GEN');
   const [editStatus, setEditStatus] = useState<'ACTIVE' | 'SUSPENDED' | 'GRADUATED'>('ACTIVE');
   const [editGuardian, setEditGuardian] = useState('');
+
+  const isValidEmailFormat = (val: string) => {
+    return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val.trim());
+  };
 
   const loadCourses = async () => {
     try {
@@ -117,7 +123,11 @@ export const StudentsView: React.FC = () => {
 
   const handleEmailBlur = async () => {
     const clean = newEmail.trim().toLowerCase();
-    if (!clean || !clean.includes('@') || clean.length < 5) return;
+    if (!clean) return;
+    if (!isValidEmailFormat(clean)) {
+      setEmailError('Please enter a valid email address with a valid domain (e.g. student@domain.com).');
+      return;
+    }
     setEmailChecking(true);
     try {
       const res = await api.checkEmailAvailability(clean, 'STUDENT');
@@ -137,10 +147,18 @@ export const StudentsView: React.FC = () => {
     e.preventDefault();
     setFormError(null);
 
+    const cleanEmail = newEmail.trim().toLowerCase();
+    if (!isValidEmailFormat(cleanEmail)) {
+      setEmailError('Please enter a valid email address with a valid domain (e.g. student@domain.com).');
+      setFormError('Invalid email format. Please verify trainee email.');
+      playAlert();
+      return;
+    }
+
     // Pre-check email availability before dispatching
     setEmailChecking(true);
     try {
-      const checkRes = await api.checkEmailAvailability(newEmail.trim(), 'STUDENT');
+      const checkRes = await api.checkEmailAvailability(cleanEmail, 'STUDENT');
       if (!checkRes.available) {
         setEmailError(checkRes.detail);
         setFormError(checkRes.detail);
@@ -152,13 +170,14 @@ export const StudentsView: React.FC = () => {
     setEmailChecking(false);
 
     try {
-      const matchedCourse = courses.find((c) => c.code === newCourse);
+      const matchedCourse = courses.find((c) => c.code.toUpperCase() === newCourse.toUpperCase());
       const course_name = matchedCourse ? matchedCourse.name : newCourse;
 
       const res = await api.createStudent({
         roll_number: newRoll.trim(),
+        registration_number: newRegNumber.trim() || undefined,
         full_name: newName.trim(),
-        email: newEmail.trim(),
+        email: cleanEmail,
         phone: newPhone.trim(),
         course_code: newCourse,
         course_name,
@@ -199,6 +218,7 @@ export const StudentsView: React.FC = () => {
     setEditingStudent(st);
     setEditName(st.full_name);
     setEditRoll(st.roll_number);
+    setEditRegNumber(st.registration_number || '');
     setEditEmail(st.email);
     setEditPhone(st.phone || '');
     setEditCourse(st.course_code);
@@ -213,12 +233,17 @@ export const StudentsView: React.FC = () => {
     if (!editingStudent) return;
 
     try {
+      const matchedCourse = courses.find((c) => c.code.toUpperCase() === editCourse.toUpperCase());
+      const course_name = matchedCourse ? matchedCourse.name : editCourse;
+
       await api.updateStudent(editingStudent.id, {
         full_name: editName.trim(),
         roll_number: editRoll.trim(),
+        registration_number: editRegNumber.trim() || undefined,
         email: editEmail.trim(),
         phone: editPhone.trim(),
         course_code: editCourse,
+        course_name,
         semester: Number(editSemester),
         category: editCategory,
         status: editStatus,
@@ -248,6 +273,7 @@ export const StudentsView: React.FC = () => {
 
   const resetNewForm = () => {
     setNewRoll('');
+    setNewRegNumber('');
     setNewName('');
     setNewEmail('');
     setNewPhone('');
@@ -425,7 +451,7 @@ export const StudentsView: React.FC = () => {
         maxWidth="2xl"
       >
         <form onSubmit={handleEnrollSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
               <input
@@ -433,7 +459,7 @@ export const StudentsView: React.FC = () => {
                 required
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="e.g. Suman Mondal"
+                placeholder="e.g. Somjit Mondal"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -445,7 +471,18 @@ export const StudentsView: React.FC = () => {
                 required
                 value={newRoll}
                 onChange={(e) => setNewRoll(e.target.value)}
-                placeholder="e.g. AMC-BED-2024-055"
+                placeholder="e.g. AMC-2024-055"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Registration No.</label>
+              <input
+                type="text"
+                value={newRegNumber}
+                onChange={(e) => setNewRegNumber(e.target.value)}
+                placeholder="e.g. REG-2024-1029"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -611,7 +648,7 @@ export const StudentsView: React.FC = () => {
           maxWidth="2xl"
         >
           <form onSubmit={handleSaveEdit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Full Name *</label>
                 <input
@@ -630,6 +667,17 @@ export const StudentsView: React.FC = () => {
                   required
                   value={editRoll}
                   onChange={(e) => setEditRoll(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Registration No.</label>
+                <input
+                  type="text"
+                  value={editRegNumber}
+                  onChange={(e) => setEditRegNumber(e.target.value)}
+                  placeholder="e.g. REG-2024-1029"
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

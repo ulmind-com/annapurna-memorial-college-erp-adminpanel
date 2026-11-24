@@ -93,6 +93,29 @@ export const ExaminationsView: React.FC = () => {
     remarks: '',
   });
 
+  // Certificate Modal & Bulk Publish
+  const [viewingCertMarksheet, setViewingCertMarksheet] = useState<Marksheet | null>(null);
+  const [isPublishingAll, setIsPublishingAll] = useState(false);
+
+  const handlePublishAll = async () => {
+    if (!window.confirm(`Are you sure you want to publish all results and official certificates for ${selectedCourse} Semester ${selectedSemester}? This will make them visible immediately to students.`)) {
+      return;
+    }
+    setIsPublishingAll(true);
+    try {
+      const res = await api.publishResults(selectedCourse, selectedSemester);
+      playSuccess();
+      alert(res.message || 'Results published successfully!');
+      const allMs = await api.getAllMarksheets();
+      setMarksheets(allMs);
+    } catch (err: any) {
+      playAlert();
+      alert(err.message || 'Failed to publish results');
+    } finally {
+      setIsPublishingAll(false);
+    }
+  };
+
   const { playClick, playSuccess, playApprove, playAlert, playPop, playTab } = useSound();
 
   const loadData = async () => {
@@ -437,7 +460,7 @@ export const ExaminationsView: React.FC = () => {
         (user?.roll_number && m.roll_number === user.roll_number) ||
         (user?.full_name && m.student_name?.toLowerCase() === user.full_name.toLowerCase()) ||
         (user?.id && m.student_id === user.id)
-    ) || marksheets[0];
+    );
 
     return (
       <div className="space-y-6 text-slate-900 dark:text-slate-100 animate-in fade-in duration-300">
@@ -617,8 +640,16 @@ export const ExaminationsView: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="p-12 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
-            No published marksheets available yet.
+          <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center">
+              <Award className="w-7 h-7" />
+            </div>
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
+              Semester Academic Results Pending Publication
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+              The university and college examination cell have not released the official statement of marks for your profile yet. Once published, your certified marksheet and academic certificate will be accessible here.
+            </p>
           </div>
         )}
       </div>
@@ -701,15 +732,28 @@ export const ExaminationsView: React.FC = () => {
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
           {isSuperAdmin && (
-            <SoundButton
-              onClick={() => setIsTemplateModalOpen(true)}
-              variant="secondary"
-              size="sm"
-              soundType="pop"
-              icon={<Sliders className="w-4 h-4 text-blue-600" />}
-            >
-              Configure Template
-            </SoundButton>
+            <>
+              <SoundButton
+                onClick={handlePublishAll}
+                variant="primary"
+                size="sm"
+                soundType="approve"
+                disabled={isPublishingAll}
+                icon={<Sparkles className="w-4 h-4 text-white" />}
+              >
+                {isPublishingAll ? 'Publishing...' : `Publish All Results (${selectedCourse} Sem ${selectedSemester})`}
+              </SoundButton>
+
+              <SoundButton
+                onClick={() => setIsTemplateModalOpen(true)}
+                variant="secondary"
+                size="sm"
+                soundType="pop"
+                icon={<Sliders className="w-4 h-4 text-blue-600" />}
+              >
+                Configure Template
+              </SoundButton>
+            </>
           )}
 
           <SoundButton
@@ -1118,15 +1162,30 @@ export const ExaminationsView: React.FC = () => {
                               )}
 
                               {studentMs.status === 'PUBLISHED' && (
-                                <SoundButton
-                                  onClick={() => handleDownloadPdf(studentMs)}
-                                  size="sm"
-                                  variant="outline"
-                                  soundType="pop"
-                                  icon={<Download className="w-3 h-3" />}
-                                >
-                                  PDF
-                                </SoundButton>
+                                <>
+                                  <SoundButton
+                                    onClick={() => {
+                                      playPop();
+                                      setViewingCertMarksheet(studentMs);
+                                    }}
+                                    size="sm"
+                                    variant="secondary"
+                                    soundType="pop"
+                                    icon={<Award className="w-3.5 h-3.5 text-amber-600" />}
+                                  >
+                                    Certificate
+                                  </SoundButton>
+
+                                  <SoundButton
+                                    onClick={() => handleDownloadPdf(studentMs)}
+                                    size="sm"
+                                    variant="outline"
+                                    soundType="pop"
+                                    icon={<Download className="w-3 h-3" />}
+                                  >
+                                    PDF
+                                  </SoundButton>
+                                </>
                               )}
                             </div>
                           </td>
@@ -1719,6 +1778,75 @@ export const ExaminationsView: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Modal: Official Digital Academic Certificate */}
+      {viewingCertMarksheet && (
+        <Modal
+          isOpen={!!viewingCertMarksheet}
+          onClose={() => setViewingCertMarksheet(null)}
+          title="Digital Academic Certificate"
+          subtitle="Annapurna Memorial College of Education"
+          maxWidth="2xl"
+        >
+          <div className="space-y-6">
+            <div className="p-8 border-4 border-double border-amber-600/40 rounded-3xl bg-gradient-to-b from-amber-50/20 via-white to-amber-50/20 text-center relative overflow-hidden">
+              <div className="w-16 h-16 rounded-full border border-blue-600/30 p-1 bg-white shadow-sm mx-auto flex items-center justify-center mb-3">
+                <img src={collegeLogo} alt="Logo" className="w-full h-full object-contain" />
+              </div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
+                Annapurna Memorial College of Education
+              </h2>
+              <p className="text-[11px] font-bold text-amber-700 tracking-widest uppercase mt-0.5">
+                Affiliated to BSAEU • Approved by NCTE
+              </p>
+              <div className="my-6 py-2 border-y border-amber-200/80">
+                <span className="text-xs font-black tracking-widest text-slate-700 uppercase">
+                  OFFICIAL ACADEMIC CERTIFICATE OF MERIT
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 max-w-lg mx-auto leading-relaxed">
+                This is to officially certify that <strong className="text-slate-900 font-black">{viewingCertMarksheet.student_name}</strong> (Roll: <strong className="font-mono text-blue-600">{viewingCertMarksheet.roll_number}</strong>) has successfully fulfilled all academic curriculum requirements for <strong className="text-slate-900">{viewingCertMarksheet.course_name}</strong> (Semester {viewingCertMarksheet.semester}) during session <strong className="text-slate-900">{viewingCertMarksheet.academic_session}</strong>.
+              </p>
+              <div className="mt-6 inline-flex items-center gap-6 px-6 py-3 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs font-bold text-amber-900">
+                <span>SGPA: <strong className="text-emerald-600 text-sm font-black">{viewingCertMarksheet.sgpa}</strong></span>
+                <span>•</span>
+                <span>Percentage: <strong className="text-blue-600 text-sm font-black">{viewingCertMarksheet.percentage}%</strong></span>
+                <span>•</span>
+                <span>Result: <strong className="text-emerald-700 uppercase">{viewingCertMarksheet.result_status || 'PASSED'}</strong></span>
+              </div>
+              <div className="mt-8 pt-4 border-t border-slate-200 flex items-center justify-between text-left text-[11px] text-slate-500">
+                <div>
+                  <div className="font-mono text-[10px]">HASH: {viewingCertMarksheet.qr_code_hash}</div>
+                  <div className="text-emerald-600 font-bold flex items-center gap-1 mt-0.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Digitally Verified Record
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-extrabold text-slate-900">Dr. Arnab Senapati, M.Ed., Ph.D.</div>
+                  <div className="text-[10px] text-slate-400">Principal & Chief Controller of Examinations</div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <SoundButton
+                variant="secondary"
+                size="sm"
+                onClick={() => window.print()}
+                icon={<Printer className="w-3.5 h-3.5" />}
+              >
+                Print Certificate
+              </SoundButton>
+              <SoundButton
+                variant="primary"
+                size="sm"
+                onClick={() => setViewingCertMarksheet(null)}
+              >
+                Done
+              </SoundButton>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

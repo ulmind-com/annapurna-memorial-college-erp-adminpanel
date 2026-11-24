@@ -30,10 +30,10 @@ export const FacultyView: React.FC = () => {
   const [empId, setEmpId] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [department, setDepartment] = useState('Department of Teacher Education');
-  const [designation, setDesignation] = useState('Assistant Professor');
-  const [qualification, setQualification] = useState('M.Ed., Ph.D.');
-  const [specialization, setSpecialization] = useState('Educational Psychology');
+  const [department, setDepartment] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [qualification, setQualification] = useState('');
+  const [specialization, setSpecialization] = useState('');
   const [emailChecking, setEmailChecking] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -62,6 +62,24 @@ export const FacultyView: React.FC = () => {
     loadFaculty();
   }, []);
 
+  const isValidEmailFormat = (val: string) => {
+    return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val.trim());
+  };
+
+  const designationSuggestions = [
+    'Professor & Principal',
+    'Professor & HOD',
+    'Associate Professor',
+    'Assistant Professor',
+    'Senior Lecturer',
+    'Lecturer',
+    'Pedagogy Instructor',
+    'Visiting Faculty',
+    'Guest Lecturer',
+    'Lab Demonstrator',
+    'Librarian',
+  ];
+
   const departmentSuggestions = Array.from(
     new Set([
       'Department of Teacher Education',
@@ -74,9 +92,28 @@ export const FacultyView: React.FC = () => {
     ])
   );
 
+  const handleOpenAdd = () => {
+    playPop();
+    setName('');
+    setEmpId('');
+    setEmail('');
+    setPhone('');
+    setDepartment('');
+    setDesignation('');
+    setQualification('');
+    setSpecialization('');
+    setEmailError(null);
+    setFormError(null);
+    setIsAddModalOpen(true);
+  };
+
   const handleEmailBlur = async () => {
     const clean = email.trim().toLowerCase();
-    if (!clean || !clean.includes('@') || clean.length < 5) return;
+    if (!clean) return;
+    if (!isValidEmailFormat(clean)) {
+      setEmailError('Please enter a valid email address with a valid domain (e.g. name@domain.com).');
+      return;
+    }
     setEmailChecking(true);
     try {
       const res = await api.checkEmailAvailability(clean, 'FACULTY');
@@ -97,10 +134,18 @@ export const FacultyView: React.FC = () => {
     setFormError(null);
     if (!name || !empId || !email) return;
 
+    const cleanEmail = email.trim().toLowerCase();
+    if (!isValidEmailFormat(cleanEmail)) {
+      setEmailError('Please enter a valid email address with a valid domain (e.g. name@domain.com).');
+      setFormError('Invalid email format entered. Please verify email address.');
+      playAlert();
+      return;
+    }
+
     // Direct check email availability before dispatching
     setEmailChecking(true);
     try {
-      const checkRes = await api.checkEmailAvailability(email.trim(), 'FACULTY');
+      const checkRes = await api.checkEmailAvailability(cleanEmail, 'FACULTY');
       if (!checkRes.available) {
         setEmailError(checkRes.detail);
         setFormError(checkRes.detail);
@@ -115,12 +160,12 @@ export const FacultyView: React.FC = () => {
       const res = await api.createFaculty({
         employee_id: empId.trim(),
         full_name: name.trim(),
-        email: email.trim(),
+        email: cleanEmail,
         phone: phone || '+91 9876543210',
-        department,
-        designation,
-        qualification,
-        specialization,
+        department: department.trim() || 'General Department',
+        designation: designation.trim() || 'Faculty Member',
+        qualification: qualification.trim() || 'Post Graduate',
+        specialization: specialization.trim() || 'Pedagogy',
       });
 
       setFaculty([res, ...faculty]);
@@ -131,12 +176,16 @@ export const FacultyView: React.FC = () => {
         name: res.full_name,
         email: res.email,
         password: res.generated_password || 'Amce#Teach2024!',
-        role: 'Faculty / Assistant Professor',
+        role: res.designation || 'Faculty Member',
       });
       setName('');
       setEmpId('');
       setEmail('');
       setPhone('');
+      setDepartment('');
+      setDesignation('');
+      setQualification('');
+      setSpecialization('');
       setEmailError(null);
       setFormError(null);
     } catch (err: any) {
@@ -223,7 +272,7 @@ export const FacultyView: React.FC = () => {
         </div>
 
         <SoundButton
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={handleOpenAdd}
           variant="primary"
           soundType="pop"
           icon={<Plus className="w-4 h-4" />}
@@ -402,29 +451,42 @@ export const FacultyView: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Designation</label>
-              <select
-                value={designation}
-                onChange={(e) => setDesignation(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Professor & Principal">Professor & Principal</option>
-                <option value="Associate Professor">Associate Professor</option>
-                <option value="Assistant Professor">Assistant Professor</option>
-                <option value="Pedagogy Instructor">Pedagogy Instructor</option>
-                <option value="Librarian">Librarian</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Department</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Designation *
+              </label>
               <input
                 type="text"
+                required
+                list="designation-suggestions"
+                value={designation}
+                onChange={(e) => setDesignation(e.target.value)}
+                placeholder="e.g. Assistant Professor, HOD, Lecturer"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <datalist id="designation-suggestions">
+                {designationSuggestions.map((d) => (
+                  <option key={d} value={d} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Department *
+              </label>
+              <input
+                type="text"
+                required
                 list="department-suggestions"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                placeholder="Select or enter department"
+                placeholder="e.g. Department of Computer Science"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <datalist id="department-suggestions">
+                {departmentSuggestions.map((d) => (
+                  <option key={d} value={d} />
+                ))}
+              </datalist>
             </div>
           </div>
 
@@ -435,7 +497,7 @@ export const FacultyView: React.FC = () => {
                 type="text"
                 value={qualification}
                 onChange={(e) => setQualification(e.target.value)}
-                placeholder="M.Ed., Ph.D., NET"
+                placeholder="e.g. M.Ed., Ph.D., M.Tech, M.Sc, NET"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -445,7 +507,7 @@ export const FacultyView: React.FC = () => {
                 type="text"
                 value={specialization}
                 onChange={(e) => setSpecialization(e.target.value)}
-                placeholder="Pedagogy of Mathematics"
+                placeholder="e.g. Educational Psychology, Data Science"
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
