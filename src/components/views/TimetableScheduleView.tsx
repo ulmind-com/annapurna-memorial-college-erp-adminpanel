@@ -1,29 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, User, BookOpen, ChevronLeft, ChevronRight, CheckCircle2, Plus } from 'lucide-react';
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  User,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import { useSound } from '../../context/SoundContext';
+import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { Course } from '../../types';
 import { SoundButton } from '../common/SoundButton';
 import { Modal } from '../common/Modal';
 
 export const TimetableScheduleView: React.FC = () => {
-  const { playTab, playPop, playSuccess } = useSound();
+  const { playTab, playPop, playSuccess, playAlert } = useSound();
+  const { activeRole, user } = useAuth();
+  const isStudent = activeRole === 'STUDENT';
+  const isSuperAdmin = activeRole === 'SUPER_ADMIN';
+  const isTeacher = activeRole === 'TEACHER';
+
   const [courses, setCourses] = useState<Course[]>([]);
   const [facultyList, setFacultyList] = useState<any[]>([]);
   const [subjectList, setSubjectList] = useState<any[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<string>('BED');
   const [selectedSemester, setSelectedSemester] = useState<number>(1);
   const [selectedDay, setSelectedDay] = useState<'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT'>('MON');
+  const [slotsList, setSlotsList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Modal for adding a new timetable slot
+  // Modal for adding a new timetable slot (Teachers & Admin only)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newSlot, setNewSlot] = useState({
     time: '10:00 AM - 11:15 AM IST',
     subject: '',
     room: 'Room 201',
-    faculty: 'Dr. Debabrata Roy',
+    faculty: '',
     type: 'Theory Lecture',
   });
+  const [isSavingSlot, setIsSavingSlot] = useState(false);
 
   const days: { key: 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT'; label: string; full: string }[] = [
     { key: 'MON', label: 'Mon', full: 'Monday' },
@@ -34,126 +54,142 @@ export const TimetableScheduleView: React.FC = () => {
     { key: 'SAT', label: 'Sat', full: 'Saturday' },
   ];
 
-  const defaultSchedule: Record<string, any[]> = {
-    MON: [],
-    TUE: [],
-    WED: [],
-    THU: [],
-    FRI: [],
-    SAT: [],
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [cList, fRes, sList, slots] = await Promise.all([
+        api.getCourses(),
+        api.getFaculty(),
+        api.getSubjects(),
+        api.getTimetableSlots(selectedCourse, selectedSemester, selectedDay),
+      ]);
+      setCourses(cList);
+      const fItems = Array.isArray(fRes) ? fRes : (fRes?.items || []);
+      setFacultyList(fItems);
+      setSubjectList(sList || []);
+      setSlotsList(slots);
+
+      if (fItems.length > 0 && !newSlot.faculty) {
+        setNewSlot((prev) => ({ ...prev, faculty: fItems[0].full_name }));
+      }
+
+      // If student, automatically adapt to student's program if available
+      if (isStudent && user) {
+        const studentCourse = (user as any).course_code || (user as any).course;
+        if (studentCourse && cList.some((c) => c.code.toUpperCase() === studentCourse.toUpperCase())) {
+          setSelectedCourse(studentCourse.toUpperCase());
+        }
+      }
+    } catch (e) {
+      console.error('Error loading timetable data:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const [scheduleData, setScheduleData] = useState<Record<string, any[]>>(() => {
-    const cached = api.getCachedList<Record<string, any[]>>('amce_timetable_schedule', defaultSchedule as any) as any;
-    if (cached && typeof cached === 'object') {
-      const cleaned: Record<string, any[]> = {};
-      for (const d of ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']) {
-        cleaned[d] = Array.isArray(cached[d])
-          ? cached[d].filter((s: any) => !s?.id?.startsWith('slot-') && s?.faculty !== 'Dr. Debabrata Roy' && s?.faculty !== 'Dr. Debabrata Jana')
-          : [];
-      }
-      return cleaned;
-    }
-    return defaultSchedule;
-  });
-
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [cList, fRes, sList] = await Promise.all([
-          api.getCourses(),
-          api.getFaculty(),
-          api.getSubjects(),
-        ]);
-        setCourses(cList);
-        setFacultyList(fRes.items || []);
-        setSubjectList(sList || []);
-        if (cList.length > 0 && !cList.some((c) => c.code === selectedCourse)) {
-          setSelectedCourse(cList[0].code);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    };
     loadData();
-  }, []);
+  }, [selectedCourse, selectedSemester, selectedDay]);
 
   const activeCourseObj = courses.find((c) => c.code === selectedCourse);
   const totalSemesters = activeCourseObj?.total_semesters || 4;
 
-  const currentSlots = (scheduleData[selectedDay] || []).filter((slot) => {
-    if (!slot.course_code) return true;
-    const matchCourse = slot.course_code.toUpperCase() === selectedCourse.toUpperCase();
-    const matchSem = !slot.semester || Number(slot.semester) === Number(selectedSemester);
-    return matchCourse && matchSem;
-  });
-
-  const handleAddSlot = (e: React.FormEvent) => {
+  const handleAddSlot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSlot.subject.trim()) {
       alert('Subject title is required.');
       return;
     }
 
-    const slotToAdd = {
-      id: `slot-${Date.now()}`,
-      course_code: selectedCourse,
-      semester: selectedSemester,
-      time: newSlot.time,
-      subject: newSlot.subject,
-      class: `${activeCourseObj?.name || selectedCourse} Sem ${selectedSemester}`,
-      room: newSlot.room,
-      faculty: newSlot.faculty,
-      type: newSlot.type,
-      status: 'Scheduled',
-    };
+    setIsSavingSlot(true);
+    try {
+      const created = await api.createTimetableSlot({
+        day: selectedDay,
+        course_code: selectedCourse,
+        semester: selectedSemester,
+        time: newSlot.time.trim(),
+        subject: newSlot.subject.trim(),
+        class_label: `${activeCourseObj?.name || selectedCourse} Sem ${selectedSemester}`,
+        room: newSlot.room.trim() || 'Room 101',
+        faculty: newSlot.faculty.trim() || (facultyList[0]?.full_name || 'Faculty Member'),
+        type: newSlot.type,
+        status: 'Scheduled',
+      });
+      playSuccess();
+      setSlotsList((prev) => [...prev, created]);
+      setIsAddModalOpen(false);
+      setNewSlot({
+        time: '10:00 AM - 11:15 AM IST',
+        subject: '',
+        room: 'Room 201',
+        faculty: facultyList[0]?.full_name || '',
+        type: 'Theory Lecture',
+      });
+    } catch (err: any) {
+      playAlert();
+      alert(err.message || 'Failed to save timetable slot');
+    } finally {
+      setIsSavingSlot(false);
+    }
+  };
 
-    const updated = {
-      ...scheduleData,
-      [selectedDay]: [slotToAdd, ...(scheduleData[selectedDay] || [])],
-    };
-
-    setScheduleData(updated);
-    api.setCachedList('amce_timetable_schedule', updated as any);
-    playSuccess();
-    setIsAddModalOpen(false);
-    setNewSlot({
-      time: '10:00 AM - 11:15 AM IST',
-      subject: '',
-      room: 'Room 201',
-      faculty: 'Dr. Debabrata Roy',
-      type: 'Theory Lecture',
-    });
+  const handleDeleteSlot = async (slotId: string, subject: string) => {
+    if (!window.confirm(`Are you sure you want to remove the lecture slot for "${subject}"?`)) {
+      return;
+    }
+    try {
+      await api.deleteTimetableSlot(slotId);
+      playSuccess();
+      setSlotsList((prev) => prev.filter((s) => s.id !== slotId));
+    } catch (err: any) {
+      playAlert();
+      alert(err.message || 'Failed to delete slot');
+    }
   };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Header */}
+      {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+              {isStudent ? 'Class Timetable' : 'Academic Scheduling Engine'}
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              Indian Standard Time (IST)
+            </span>
+          </div>
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5 mt-1">
             <Calendar className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            <span>Academic Lecture & Practicum Timetable</span>
+            <span>
+              {isStudent ? 'Weekly Lecture & Practicum Schedule' : 'Academic Lecture & Practicum Timetable'}
+            </span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Weekly institutional timetable in Indian Standard Time (IST) • Dynamic Multi-Program Schedule
+            {isStudent
+              ? 'View your class schedule, laboratory sessions, assigned faculty, and room locations.'
+              : 'Weekly institutional timetable • Manage department lecture slots and room allocations.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <SoundButton
-            onClick={() => {
-              playPop();
-              setIsAddModalOpen(true);
-            }}
-            variant="primary"
-            size="sm"
-            soundType="pop"
-            icon={<Plus className="w-4 h-4" />}
-          >
-            Add Lecture / Lab Slot
-          </SoundButton>
-        </div>
+        {/* ONLY Teachers and Super Admin can add lecture slots! Students NEVER see this button! */}
+        {!isStudent && (
+          <div className="flex items-center gap-2">
+            <SoundButton
+              onClick={() => {
+                playPop();
+                setIsAddModalOpen(true);
+              }}
+              variant="primary"
+              size="sm"
+              soundType="pop"
+              icon={<Plus className="w-4 h-4" />}
+            >
+              Add Lecture / Lab Slot
+            </SoundButton>
+          </div>
+        )}
       </div>
 
       {/* Program & Semester Selector */}
@@ -206,52 +242,57 @@ export const TimetableScheduleView: React.FC = () => {
           </div>
         </div>
 
-        <div className="text-xs text-slate-500 font-medium">
-          Showing: <span className="font-bold text-slate-900 dark:text-white">{activeCourseObj?.name || selectedCourse}</span> (Sem {selectedSemester})
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Active Session 2026</span>
         </div>
       </div>
 
-      {/* Weekday Switcher Bar */}
-      <div className="grid grid-cols-6 gap-2 p-1.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-        {days.map((d) => {
-          const isSelected = selectedDay === d.key;
-          return (
-            <button
-              key={d.key}
-              type="button"
-              onClick={() => {
-                playTab();
-                setSelectedDay(d.key);
-              }}
-              className={`py-3 px-2 rounded-xl text-xs font-bold transition-all text-center ${
-                isSelected
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25 scale-[1.02]'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <div className="text-[10px] uppercase font-bold opacity-75">{d.label}</div>
-              <div className="text-sm font-black mt-0.5">{d.full}</div>
-            </button>
-          );
-        })}
+      {/* Weekday Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {days.map((day) => (
+          <button
+            key={day.key}
+            type="button"
+            onClick={() => {
+              playTab();
+              setSelectedDay(day.key);
+            }}
+            className={`flex-1 min-w-[90px] py-3 px-4 rounded-2xl text-xs font-extrabold transition-all text-center border ${
+              selectedDay === day.key
+                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+            }`}
+          >
+            <span className="block text-base font-black">{day.label}</span>
+            <span className="text-[10px] opacity-80 uppercase tracking-wider">{day.full}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Slots List */}
-      <div className="space-y-3.5">
-        {currentSlots.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
-            <Calendar className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
-            <p className="font-semibold text-xs">
-              No lecture or lab periods scheduled for {selectedCourse} (Sem {selectedSemester}) on {days.find((d) => d.key === selectedDay)?.full}.
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Click &quot;Add Lecture / Lab Slot&quot; above to schedule periods.
+      {/* Slots Schedule List */}
+      <div className="space-y-3">
+        {loading ? (
+          <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-xs font-bold text-slate-400">Loading schedule from database...</p>
+          </div>
+        ) : slotsList.length === 0 ? (
+          <div className="p-12 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
+            <Calendar className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              No Lectures Scheduled for {days.find((d) => d.key === selectedDay)?.full}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+              {!isStudent
+                ? 'Click "Add Lecture / Lab Slot" above to schedule a new class for this degree cohort.'
+                : 'No academic classes scheduled for this day. Enjoy your study or library hours.'}
             </p>
           </div>
         ) : (
-          currentSlots.map((slot, index) => (
+          slotsList.map((slot) => (
             <div
-              key={slot.id || index}
+              key={slot.id}
               className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-blue-300 dark:hover:border-blue-700 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
             >
               <div className="flex items-start gap-4">
@@ -280,7 +321,7 @@ export const TimetableScheduleView: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
                     <span className="flex items-center gap-1.5">
                       <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{slot.class}</span>
+                      <span>{slot.class_label || `${slot.course_code} Sem ${slot.semester}`}</span>
                     </span>
                     <span className="flex items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5 text-slate-400" />
@@ -296,16 +337,28 @@ export const TimetableScheduleView: React.FC = () => {
 
               <div className="flex items-center gap-2 self-end md:self-center">
                 <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                  {slot.status}
+                  {slot.status || 'Scheduled'}
                 </span>
+
+                {/* ONLY Teachers and Admins can delete slots! */}
+                {!isStudent && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteSlot(slot.id, slot.subject)}
+                    title="Remove Lecture Slot"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
           ))
         )}
       </div>
 
-      {/* Modal: Add Lecture/Lab Slot */}
-      {isAddModalOpen && (
+      {/* Modal: Add Lecture/Lab Slot (Teachers & Super Admin ONLY) */}
+      {!isStudent && isAddModalOpen && (
         <Modal
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
@@ -336,7 +389,7 @@ export const TimetableScheduleView: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Timing (IST)</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Timing (IST) *</label>
                 <input
                   type="text"
                   required
@@ -348,33 +401,19 @@ export const TimetableScheduleView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Slot Type</label>
-                <select
-                  value={newSlot.type}
-                  onChange={(e) => setNewSlot({ ...newSlot, type: e.target.value })}
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Room / Lab No. *</label>
+                <input
+                  type="text"
+                  required
+                  value={newSlot.room}
+                  onChange={(e) => setNewSlot({ ...newSlot, room: e.target.value })}
+                  placeholder="e.g. Room 201 / ICT Lab"
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
-                >
-                  <option value="Theory Lecture">Theory Lecture</option>
-                  <option value="Lab Practicum">Lab Practicum</option>
-                  <option value="Interactive Seminar">Interactive Seminar</option>
-                  <option value="Workshop">Workshop</option>
-                  <option value="Field Engagement">Field Engagement</option>
-                </select>
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Classroom / Lab</label>
-                <input
-                  type="text"
-                  value={newSlot.room}
-                  onChange={(e) => setNewSlot({ ...newSlot, room: e.target.value })}
-                  placeholder="e.g. Room 204 / Computer Lab 1"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
-                />
-              </div>
-
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Faculty</label>
                 <input
@@ -382,7 +421,7 @@ export const TimetableScheduleView: React.FC = () => {
                   list="faculty-suggestions"
                   value={newSlot.faculty}
                   onChange={(e) => setNewSlot({ ...newSlot, faculty: e.target.value })}
-                  placeholder="e.g. Prof. Soumen Mukherjee"
+                  placeholder="Faculty Member Name"
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
                 />
                 <datalist id="faculty-suggestions">
@@ -391,14 +430,35 @@ export const TimetableScheduleView: React.FC = () => {
                   ))}
                 </datalist>
               </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Session Type</label>
+                <select
+                  value={newSlot.type}
+                  onChange={(e) => setNewSlot({ ...newSlot, type: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-bold"
+                >
+                  <option value="Theory Lecture">Theory Lecture</option>
+                  <option value="Practicum / Lab">Practicum / Lab Session</option>
+                  <option value="Tutorial Session">Tutorial Session</option>
+                  <option value="Microteaching">Microteaching Practicum</option>
+                  <option value="Seminar / Workshop">Seminar / Workshop</option>
+                </select>
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
               <SoundButton type="button" onClick={() => setIsAddModalOpen(false)} variant="secondary" size="sm">
                 Cancel
               </SoundButton>
-              <SoundButton type="submit" variant="primary" size="sm" soundType="success">
-                Save Schedule Slot
+              <SoundButton
+                type="submit"
+                variant="primary"
+                size="sm"
+                soundType="success"
+                disabled={isSavingSlot}
+              >
+                {isSavingSlot ? 'Saving...' : 'Add Slot to Schedule'}
               </SoundButton>
             </div>
           </form>

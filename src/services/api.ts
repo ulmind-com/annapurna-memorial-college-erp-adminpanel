@@ -1540,6 +1540,115 @@ class ApiClient {
       return ann;
     }
   }
+
+  // --- ASSIGNMENTS & PRACTICUM ---
+  async getAssignments(courseCode?: string, semester?: number): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (courseCode && courseCode !== 'ALL') params.append('course_code', courseCode);
+      if (semester) params.append('semester', String(semester));
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const list = await this.request<any[]>(`/assignments${qs}`);
+      this.setCachedList('amce_assignments', list);
+      return list;
+    } catch {
+      return this.getCachedList<any[]>('amce_assignments', []);
+    }
+  }
+
+  async createAssignment(data: any): Promise<any> {
+    try {
+      const created = await this.request<any>('/assignments', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      const cached = this.getCachedList<any[]>('amce_assignments', []);
+      this.setCachedList('amce_assignments', [created, ...cached]);
+      return created;
+    } catch (e: any) {
+      throw new Error(e.message || 'Failed to create assignment');
+    }
+  }
+
+  async deleteAssignment(assignmentId: string): Promise<void> {
+    try {
+      await this.request<void>(`/assignments/${assignmentId}`, { method: 'DELETE' });
+    } catch (e: any) {
+      console.warn('API delete assignment failed, updating local state', e);
+    }
+    const cached = this.getCachedList<any>('amce_assignments', []);
+    this.setCachedList('amce_assignments', Array.isArray(cached) ? cached.filter((a: any) => a.id !== assignmentId) : []);
+  }
+
+  async submitAssignment(assignmentId: string, data: any): Promise<any> {
+    try {
+      return await this.request<any>(`/assignments/${assignmentId}/submit`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch (e: any) {
+      throw new Error(e.message || 'Failed to submit assignment');
+    }
+  }
+
+  async getAssignmentSubmissions(assignmentId: string): Promise<any[]> {
+    try {
+      return await this.request<any[]>(`/assignments/${assignmentId}/submissions`);
+    } catch {
+      return [];
+    }
+  }
+
+  async gradeAssignmentSubmission(submissionId: string, data: { marks_awarded: number; feedback?: string }): Promise<any> {
+    try {
+      return await this.request<any>(`/assignments/submissions/${submissionId}/grade`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch (e: any) {
+      throw new Error(e.message || 'Failed to grade submission');
+    }
+  }
+
+  // --- TIMETABLE & SCHEDULE ---
+  async getTimetableSlots(courseCode?: string, semester?: number, day?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (courseCode && courseCode !== 'ALL') params.append('course_code', courseCode);
+      if (semester) params.append('semester', String(semester));
+      if (day) params.append('day', day);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const slots = await this.request<any[]>(`/academics/timetable${qs}`);
+      this.setCachedList('amce_timetable_slots', slots);
+      return slots;
+    } catch {
+      return this.getCachedList<any[]>('amce_timetable_slots', []);
+    }
+  }
+
+  async createTimetableSlot(data: any): Promise<any> {
+    try {
+      const created = await this.request<any>('/academics/timetable', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      const cached = this.getCachedList<any[]>('amce_timetable_slots', []);
+      this.setCachedList('amce_timetable_slots', [created, ...cached]);
+      return created;
+    } catch (e: any) {
+      throw new Error(e.message || 'Failed to add timetable slot');
+    }
+  }
+
+  async deleteTimetableSlot(slotId: string): Promise<void> {
+    try {
+      await this.request<void>(`/academics/timetable/${slotId}`, { method: 'DELETE' });
+    } catch (e: any) {
+      console.warn('API delete timetable slot failed', e);
+    }
+    const cached = this.getCachedList<any>('amce_timetable_slots', []);
+    this.setCachedList('amce_timetable_slots', Array.isArray(cached) ? cached.filter((s: any) => s.id !== slotId) : []);
+  }
 }
 
 export const api = new ApiClient();
