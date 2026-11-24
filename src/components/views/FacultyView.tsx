@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Search, Plus, Mail, Phone, BookOpen, GraduationCap, CheckCircle, Edit3, Trash2, KeyRound, Copy, Check } from 'lucide-react';
+import { Users, Search, Plus, Mail, Phone, BookOpen, GraduationCap, CheckCircle, Edit3, Trash2, KeyRound, Copy, Check, AlertCircle } from 'lucide-react';
 import { Faculty, Course } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
@@ -23,7 +23,7 @@ export const FacultyView: React.FC = () => {
     role: string;
   } | null>(null);
   const [hasCopied, setHasCopied] = useState(false);
-  const { playSuccess, playPop } = useSound();
+  const { playSuccess, playPop, playAlert } = useSound();
 
   // Add Form
   const [name, setName] = useState('');
@@ -34,6 +34,9 @@ export const FacultyView: React.FC = () => {
   const [designation, setDesignation] = useState('Assistant Professor');
   const [qualification, setQualification] = useState('M.Ed., Ph.D.');
   const [specialization, setSpecialization] = useState('Educational Psychology');
+  const [emailChecking, setEmailChecking] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Edit Form
   const [editName, setEditName] = useState('');
@@ -71,15 +74,48 @@ export const FacultyView: React.FC = () => {
     ])
   );
 
+  const handleEmailBlur = async () => {
+    const clean = email.trim().toLowerCase();
+    if (!clean || !clean.includes('@') || clean.length < 5) return;
+    setEmailChecking(true);
+    try {
+      const res = await api.checkEmailAvailability(clean, 'FACULTY');
+      if (!res.available) {
+        setEmailError(res.detail);
+      } else {
+        setEmailError(null);
+      }
+    } catch {
+      setEmailError(null);
+    } finally {
+      setEmailChecking(false);
+    }
+  };
+
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     if (!name || !empId || !email) return;
+
+    // Direct check email availability before dispatching
+    setEmailChecking(true);
+    try {
+      const checkRes = await api.checkEmailAvailability(email.trim(), 'FACULTY');
+      if (!checkRes.available) {
+        setEmailError(checkRes.detail);
+        setFormError(checkRes.detail);
+        playAlert();
+        setEmailChecking(false);
+        return;
+      }
+    } catch {}
+    setEmailChecking(false);
 
     try {
       const res = await api.createFaculty({
-        employee_id: empId,
-        full_name: name,
-        email,
+        employee_id: empId.trim(),
+        full_name: name.trim(),
+        email: email.trim(),
         phone: phone || '+91 9876543210',
         department,
         designation,
@@ -101,8 +137,15 @@ export const FacultyView: React.FC = () => {
       setEmpId('');
       setEmail('');
       setPhone('');
+      setEmailError(null);
+      setFormError(null);
     } catch (err: any) {
-      alert(err.message || 'Failed to add faculty');
+      playAlert();
+      const msg = err.message || 'Failed to add faculty';
+      setFormError(msg);
+      if (msg.toLowerCase().includes('email')) {
+        setEmailError(msg);
+      }
     }
   };
 
@@ -317,15 +360,33 @@ export const FacultyView: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Email *</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Email Address * {emailChecking && <span className="text-[10px] text-blue-500 font-normal ml-1">Verifying availability...</span>}
+              </label>
               <input
                 type="email"
                 required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailError(null);
+                  setFormError(null);
+                }}
+                onBlur={handleEmailBlur}
                 placeholder="faculty@annapurnacollege.org"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
+                  emailError ? 'border-rose-400 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500'
+                }`}
               />
+              {emailError && (
+                <div className="mt-1.5 p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-1.5 text-[11px] text-rose-700 dark:text-rose-300 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Email Already in Use:</span>
+                    <p className="mt-0.5">{emailError}</p>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Phone</label>
@@ -390,6 +451,16 @@ export const FacultyView: React.FC = () => {
             </div>
           </div>
 
+          {formError && (
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-2.5 text-xs text-rose-700 dark:text-rose-300">
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold">Cannot Appoint Faculty Member</div>
+                <p className="mt-0.5">{formError}</p>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
@@ -398,7 +469,7 @@ export const FacultyView: React.FC = () => {
             >
               Cancel
             </button>
-            <SoundButton type="submit" variant="primary" soundType="success">
+            <SoundButton type="submit" variant="primary" soundType="success" disabled={!!emailError || emailChecking}>
               Save Faculty Record
             </SoundButton>
           </div>

@@ -513,65 +513,75 @@ class ApiClient {
     }
   }
 
-  async createStudent(data: Partial<Student>): Promise<Student & { generated_password?: string }> {
-    const generated_password = `Amce#Stud${Math.floor(1000 + Math.random() * 9000)}`;
-    let createdStudent: Student;
-
-    try {
-      const res = await this.request<any>('/students', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-      createdStudent = res;
-      this.students = [createdStudent, ...this.students.filter((s) => s.id !== createdStudent.id)];
-      this.setCachedList('annapurna_students', this.students);
-    } catch {
-      const matchedCourse = this.courses.find((c) => c.code === (data.course_code || 'BED'));
-      createdStudent = {
-        id: `st-${Date.now()}`,
-        roll_number: data.roll_number || `AMC-${data.course_code || 'BED'}-2024-${this.students.length + 10}`,
-        full_name: data.full_name || 'New Trainee',
-        email: data.email || `trainee.${Date.now()}@student.annapurnacollege.org`,
-        phone: data.phone || '+91 9999999999',
-        course_code: data.course_code || 'BED',
-        course_name: data.course_name || (matchedCourse ? matchedCourse.name : 'Bachelor of Education (B.Ed.)'),
-        academic_session: data.academic_session || '2024-2026',
-        semester: Number(data.semester) || 1,
-        section: data.section || 'A',
-        gender: data.gender || 'FEMALE',
-        category: data.category || 'GEN',
-        guardian_name: data.guardian_name || 'Guardian',
-        guardian_phone: data.guardian_phone || '+91 9999999990',
-        guardian_relation: data.guardian_relation || 'Parent',
-        status: 'ACTIVE',
-        avatar_url: `https://api.dicebear.com/7.x/adventurer/svg?seed=${data.roll_number || 'AMC'}`,
-        created_at: new Date().toISOString(),
-      };
-      this.students = [createdStudent, ...this.students];
-      this.setCachedList('annapurna_students', this.students);
+  async checkEmailAvailability(
+    email: string,
+    type?: 'FACULTY' | 'STUDENT'
+  ): Promise<{ available: boolean; exists: boolean; role?: string; name?: string; detail: string }> {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { available: true, exists: false, detail: 'Enter a valid email address' };
     }
+    try {
+      const qs = new URLSearchParams({ email: cleanEmail, ...(type ? { type } : {}) }).toString();
+      return await this.request<{ available: boolean; exists: boolean; role?: string; name?: string; detail: string }>(
+        `/auth/check-email?${qs}`
+      );
+    } catch {
+      // Local verification against active state
+      const clean = cleanEmail;
+      const existingFaculty = this.faculty.find((f) => f.email.toLowerCase() === clean);
+      if (existingFaculty) {
+        return {
+          available: false,
+          exists: true,
+          role: 'FACULTY',
+          name: existingFaculty.full_name,
+          detail: `This email is already registered to faculty member '${existingFaculty.full_name}'. Please provide another email address.`,
+        };
+      }
+      const existingStudent = this.students.find((s) => s.email.toLowerCase() === clean);
+      if (existingStudent) {
+        return {
+          available: false,
+          exists: true,
+          role: 'STUDENT',
+          name: existingStudent.full_name,
+          detail: `This email is already registered to student '${existingStudent.full_name}' (Roll: ${existingStudent.roll_number}). Please provide another email address.`,
+        };
+      }
+      return { available: true, exists: false, detail: 'Email address is available.' };
+    }
+  }
 
-    const finalPassword = (createdStudent as any).generated_password || generated_password;
+  async createStudent(data: Partial<Student>): Promise<Student & { generated_password?: string }> {
+    const res = await this.request<any>('/students', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    const createdStudent: Student = res;
+    this.students = [createdStudent, ...this.students.filter((s) => s.id !== createdStudent.id)];
+    this.setCachedList('annapurna_students', this.students);
+
+    const finalPassword = (createdStudent as any).generated_password || `Amce#Stud${Math.floor(1000 + Math.random() * 9000)}`;
     const accounts = this.getRegisteredAccounts();
     const existingIdx = accounts.findIndex((a) => a.email.toLowerCase() === createdStudent.email.toLowerCase());
     const newAccount: RegisteredAccount = {
       id: `user-${createdStudent.id}`,
       email: createdStudent.email,
       password: finalPassword,
+      alt_password: 'Student@123456',
       role: 'STUDENT',
       full_name: createdStudent.full_name,
       avatar_url: createdStudent.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
       is_active: true,
       roll_number: createdStudent.roll_number,
     };
-
     if (existingIdx >= 0) {
       accounts[existingIdx] = newAccount;
     } else {
       accounts.push(newAccount);
     }
     this.saveRegisteredAccounts(accounts);
-
     return { ...createdStudent, generated_password: finalPassword };
   }
 
@@ -591,39 +601,15 @@ class ApiClient {
   }
 
   async createFaculty(data: Partial<Faculty>): Promise<Faculty & { generated_password?: string }> {
-    const generated_password = `Amce#Teach${Math.floor(1000 + Math.random() * 9000)}`;
-    let createdFaculty: Faculty;
+    const res = await this.request<any>('/faculty', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    const createdFaculty: Faculty = res;
+    this.faculty = [createdFaculty, ...this.faculty.filter((f) => f.id !== createdFaculty.id)];
+    this.setCachedList('annapurna_faculty', this.faculty);
 
-    try {
-      const res = await this.request<any>('/faculty', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-      createdFaculty = res;
-      this.faculty = [createdFaculty, ...this.faculty.filter((f) => f.id !== createdFaculty.id)];
-      this.setCachedList('annapurna_faculty', this.faculty);
-    } catch {
-      createdFaculty = {
-        id: `fac-${Date.now()}`,
-        employee_id: data.employee_id || `AMC-FAC-00${this.faculty.length + 1}`,
-        full_name: data.full_name || 'Faculty Member',
-        email: data.email || `faculty.${Date.now()}@annapurnacollege.edu.in`,
-        phone: data.phone || '+91 9876543210',
-        department: data.department || 'Department of Teacher Education',
-        designation: data.designation || 'Assistant Professor',
-        qualification: data.qualification || 'M.Ed., Ph.D.',
-        specialization: data.specialization || 'Pedagogy of Education',
-        assigned_subjects: data.assigned_subjects || [],
-        status: 'ACTIVE',
-        is_active: true,
-        avatar_url: `https://api.dicebear.com/7.x/micah/svg?seed=${data.employee_id || 'FAC'}`,
-        created_at: new Date().toISOString(),
-      };
-      this.faculty = [createdFaculty, ...this.faculty];
-      this.setCachedList('annapurna_faculty', this.faculty);
-    }
-
-    const finalPassword = (createdFaculty as any).generated_password || generated_password;
+    const finalPassword = (createdFaculty as any).generated_password || `Amce#Teach${Math.floor(1000 + Math.random() * 9000)}`;
     const accounts = this.getRegisteredAccounts();
     const existingIdx = accounts.findIndex((a) => a.email.toLowerCase() === createdFaculty.email.toLowerCase());
     const newAccount: RegisteredAccount = {

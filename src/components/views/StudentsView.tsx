@@ -15,6 +15,7 @@ import {
   Trash2,
   Copy,
   Check,
+  AlertCircle,
 } from 'lucide-react';
 import { Student, Course } from '../../types';
 import { api } from '../../services/api';
@@ -43,7 +44,7 @@ export const StudentsView: React.FC = () => {
   } | null>(null);
   const [hasCopied, setHasCopied] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-  const { playSuccess, playPop } = useSound();
+  const { playSuccess, playPop, playAlert } = useSound();
   const { isSuperAdmin } = useAuth();
 
   // Form State for New Student
@@ -58,6 +59,9 @@ export const StudentsView: React.FC = () => {
   const [newCategory, setNewCategory] = useState('GEN');
   const [newGuardian, setNewGuardian] = useState('');
   const [newGuardianPhone, setNewGuardianPhone] = useState('');
+  const [emailChecking, setEmailChecking] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Form State for Editing Student
   const [editName, setEditName] = useState('');
@@ -111,8 +115,42 @@ export const StudentsView: React.FC = () => {
     setIsEnrollModalOpen(true);
   };
 
+  const handleEmailBlur = async () => {
+    const clean = newEmail.trim().toLowerCase();
+    if (!clean || !clean.includes('@') || clean.length < 5) return;
+    setEmailChecking(true);
+    try {
+      const res = await api.checkEmailAvailability(clean, 'STUDENT');
+      if (!res.available) {
+        setEmailError(res.detail);
+      } else {
+        setEmailError(null);
+      }
+    } catch {
+      setEmailError(null);
+    } finally {
+      setEmailChecking(false);
+    }
+  };
+
   const handleEnrollSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
+    // Pre-check email availability before dispatching
+    setEmailChecking(true);
+    try {
+      const checkRes = await api.checkEmailAvailability(newEmail.trim(), 'STUDENT');
+      if (!checkRes.available) {
+        setEmailError(checkRes.detail);
+        setFormError(checkRes.detail);
+        playAlert();
+        setEmailChecking(false);
+        return;
+      }
+    } catch {}
+    setEmailChecking(false);
+
     try {
       const matchedCourse = courses.find((c) => c.code === newCourse);
       const course_name = matchedCourse ? matchedCourse.name : newCourse;
@@ -143,9 +181,16 @@ export const StudentsView: React.FC = () => {
         role: 'Teacher Trainee (Student)',
       });
       resetNewForm();
+      setEmailError(null);
+      setFormError(null);
       loadStudents();
     } catch (err: any) {
-      alert(err.message || 'Enrollment failed');
+      playAlert();
+      const msg = err.message || 'Enrollment failed';
+      setFormError(msg);
+      if (msg.toLowerCase().includes('email')) {
+        setEmailError(msg);
+      }
     }
   };
 
@@ -408,15 +453,33 @@ export const StudentsView: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Email Address *</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Email Address * {emailChecking && <span className="text-[10px] text-blue-500 font-normal ml-1">Verifying availability...</span>}
+              </label>
               <input
                 type="email"
                 required
                 value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
+                onChange={(e) => {
+                  setNewEmail(e.target.value);
+                  setEmailError(null);
+                  setFormError(null);
+                }}
+                onBlur={handleEmailBlur}
                 placeholder="suman@annapurnacollege.org"
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
+                  emailError ? 'border-rose-400 focus:ring-rose-500' : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500'
+                }`}
               />
+              {emailError && (
+                <div className="mt-1.5 p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-1.5 text-[11px] text-rose-700 dark:text-rose-300 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Email Already Registered:</span>
+                    <p className="mt-0.5">{emailError}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -513,6 +576,16 @@ export const StudentsView: React.FC = () => {
             </div>
           </div>
 
+          {formError && (
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-2.5 text-xs text-rose-700 dark:text-rose-300">
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold">Cannot Complete Admission</div>
+                <p className="mt-0.5">{formError}</p>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
@@ -521,7 +594,7 @@ export const StudentsView: React.FC = () => {
             >
               Cancel
             </button>
-            <SoundButton type="submit" variant="primary" soundType="success">
+            <SoundButton type="submit" variant="primary" soundType="success" disabled={!!emailError || emailChecking}>
               Complete Admission
             </SoundButton>
           </div>
