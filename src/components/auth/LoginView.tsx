@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Lock,
   Mail,
-  Sparkles,
 } from 'lucide-react';
 import { useAuth, ActiveRole } from '../../context/AuthContext';
 import { useSound } from '../../context/SoundContext';
@@ -30,31 +29,6 @@ export const LoginView: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // High-End Security: Brute-Force Rate Limiting & Cooldown Timer
-  const [failedCount, setFailedCount] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('amce_login_fails');
-      return saved ? parseInt(saved, 10) : 0;
-    }
-    return 0;
-  });
-  const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
-
-  // Active countdown timer when locked out
-  React.useEffect(() => {
-    if (lockoutRemaining <= 0) return;
-    const interval = setInterval(() => {
-      setLockoutRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [lockoutRemaining]);
 
   // Forgot Password Modal state
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
@@ -90,30 +64,9 @@ export const LoginView: React.FC = () => {
     setErrorMessage(null);
   };
 
-  const handleAutoFill = (role: ActiveRole = selectedRole) => {
-    playPop();
-    if (role === 'SUPER_ADMIN') {
-      setEmail('admin@annapurnacollege.edu.in');
-      setPassword('Admin@Amce2024#');
-    } else if (role === 'TEACHER') {
-      setEmail('faculty.soumen@annapurnacollege.edu.in');
-      setPassword('Teacher@Amce2024#');
-    } else {
-      setEmail('student@annapurnacollege.org');
-      setPassword('Student@Amce2024#');
-    }
-    setErrorMessage(null);
-  };
-
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-
-    if (lockoutRemaining > 0) {
-      playAlert();
-      setErrorMessage(`Security Lockout Active: Please wait ${lockoutRemaining}s before attempting sign in.`);
-      return;
-    }
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
@@ -150,26 +103,12 @@ export const LoginView: React.FC = () => {
         }
       }
 
-      // Reset brute-force counter upon successful authentication
-      setFailedCount(0);
-      sessionStorage.removeItem('amce_login_fails');
-
       playSuccess();
     } catch (err: any) {
       playAlert();
-      const newFails = failedCount + 1;
-      setFailedCount(newFails);
-      sessionStorage.setItem('amce_login_fails', String(newFails));
-
-      if (newFails >= 5) {
-        setLockoutRemaining(60);
-        setErrorMessage('Security Shield: 5 consecutive failed login attempts detected. Form locked for 60 seconds.');
-      } else {
-        const remainingAttempts = 5 - newFails;
-        setErrorMessage(
-          err.message || `Invalid institutional credentials. (${remainingAttempts} attempts remaining before temporary security lock)`
-        );
-      }
+      setErrorMessage(
+        err.message || 'Invalid email address or password credentials. Please verify your details.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -374,27 +313,6 @@ export const LoginView: React.FC = () => {
               </button>
             </div>
 
-            {/* Quick-Fill Active Role Credentials Chip */}
-            <div className="mt-3 flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50/80 border border-blue-200/60 shadow-2xs">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Sparkles className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
-                <span className="text-[11px] font-medium text-slate-700 truncate">
-                  {selectedRole === 'SUPER_ADMIN'
-                    ? 'admin@annapurnacollege.edu.in'
-                    : selectedRole === 'TEACHER'
-                    ? 'faculty.soumen@annapurnacollege.edu.in'
-                    : 'student@annapurnacollege.org'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleAutoFill(selectedRole)}
-                className="ml-2 px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] transition-all flex-shrink-0 shadow-xs cursor-pointer active:scale-95"
-              >
-                Auto-fill
-              </button>
-            </div>
-
             {/* Welcome Back Header with Dynamic Role Subtitle */}
             <div className="mt-6 space-y-1">
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
@@ -464,33 +382,30 @@ export const LoginView: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Forgot Password Link */}
-                <div className="text-right pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playPop();
-                      setIsForgotModalOpen(true);
-                    }}
-                    className="text-xs text-slate-500 hover:text-blue-600 font-semibold transition-colors"
-                  >
-                    Forgot Password
-                  </button>
-                </div>
+                {/* Forgot Password Link - Only for Teacher & Student; Super Admin credentials are institutionally secured */}
+                {selectedRole !== 'SUPER_ADMIN' && (
+                  <div className="text-right pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playPop();
+                        setIsForgotModalOpen(true);
+                      }}
+                      className="text-xs text-slate-500 hover:text-blue-600 font-semibold transition-colors cursor-pointer"
+                    >
+                      Forgot Password
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* Login Button with Lockout Protection */}
+              {/* Login Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting || lockoutRemaining > 0}
-                className="w-full py-3.5 px-6 rounded-2xl bg-[#4361ee] hover:bg-[#3451db] text-white font-bold text-sm shadow-lg shadow-blue-500/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
+                disabled={isSubmitting}
+                className="w-full py-3.5 px-6 rounded-2xl bg-[#4361ee] hover:bg-[#3451db] text-white font-bold text-sm shadow-lg shadow-blue-500/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2 cursor-pointer"
               >
-                {lockoutRemaining > 0 ? (
-                  <span className="flex items-center gap-1.5 text-amber-200">
-                    <Lock className="w-4 h-4" />
-                    Security Lockout ({lockoutRemaining}s)
-                  </span>
-                ) : isSubmitting ? (
+                {isSubmitting ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   currentMeta.buttonLabel
