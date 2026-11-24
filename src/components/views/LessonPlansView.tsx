@@ -1,92 +1,118 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Plus, CheckCircle2, Clock, BookOpen, Download, Search, Filter } from 'lucide-react';
+import { FileText, Plus, Download, Search, Trash2, Upload, BookOpen } from 'lucide-react';
 import { SoundButton } from '../common/SoundButton';
+import { Modal } from '../common/Modal';
 import { useSound } from '../../context/SoundContext';
-import { useAuth } from '../../context/AuthContext';
-import { api } from '../../services/api';
-import { Course } from '../../types';
+import { api, FacultySubject } from '../../services/api';
+import { StudyMaterial } from '../../types';
 
-const DEFAULT_PLANS: any[] = [];
+const inputCls =
+  'w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
 
+/** Teacher lesson plans (B.Ed. micro-teaching plans) — stored as study materials with category LESSON_PLAN. */
 export const LessonPlansView: React.FC = () => {
-  const { playPop, playSuccess } = useSound();
-  const { user } = useAuth();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const { playPop, playSuccess, playAlert } = useSound();
+  const [subjects, setSubjects] = useState<FacultySubject[]>([]);
+  const [plans, setPlans] = useState<StudyMaterial[]>([]);
   const [search, setSearch] = useState('');
-  const [plans, setPlans] = useState(() => {
-    const list = api.getCachedList<any>('amce_lesson_plans', []);
-    return list.filter((p: any) => !['LP-101', 'LP-102', 'LP-103', 'LP-104'].includes(p.id));
-  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newCourse, setNewCourse] = useState('B.Ed. Semester 2');
-  const [newUnit, setNewUnit] = useState('');
-  const [newTlm, setNewTlm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [title, setTitle] = useState('');
+  const [subjectId, setSubjectId] = useState('');
+  const [unit, setUnit] = useState('');
+  const [tlm, setTlm] = useState('');
+  const [file, setFile] = useState<File | null>(null);
 
-  useEffect(() => {
-    const loadCourses = async () => {
-      try {
-        const cList = await api.getCourses();
-        setCourses(cList);
-        if (cList.length > 0) {
-          setNewCourse(`${cList[0].name} Semester 1`);
-        }
-      } catch (e) {
-        console.error('Error loading courses for lesson plans:', e);
-      }
-    };
-    loadCourses();
-  }, []);
-
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
-
-    playSuccess();
-    const newPlan = {
-      id: `LP-${Date.now().toString().slice(-4)}`,
-      title: newTitle.trim(),
-      course: newCourse,
-      unit: newUnit.trim() || 'Unit 1: Foundation Concept',
-      pedagogyType: 'BSAEU Standard Lesson Plan Framework',
-      tlm: newTlm.trim() || 'Blackboard, Chart paper & Textbooks',
-      duration: '45 Minutes',
-      status: 'SUBMITTED',
-      faculty: user?.full_name || 'Faculty Member',
-      updatedAt: 'Just Now IST',
-    };
-
-    const updated = [newPlan, ...plans];
-    setPlans(updated);
-    api.setCachedList('amce_lesson_plans', updated);
-    setIsModalOpen(false);
-    setNewTitle('');
-    setNewUnit('');
-    setNewTlm('');
+  const load = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [me, list] = await Promise.all([
+        api.getMyFacultyProfile(),
+        api.getStudyMaterials({ category: 'LESSON_PLAN' }),
+      ]);
+      setSubjects(me.subjects);
+      if (me.subjects.length) setSubjectId((prev) => prev || me.subjects[0].id);
+      setPlans(list);
+    } catch (e: any) {
+      setError(e.message || 'Failed to load lesson plans');
+    } finally {
+      setLoading(false);
+    }
   };
 
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const sub = subjects.find((s) => s.id === subjectId);
+    if (!title.trim() || !sub || !file) {
+      playAlert();
+      alert('Title, subject and lesson plan file are required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append('title', title.trim());
+      fd.append('description', [unit && `Unit: ${unit}`, tlm && `TLM: ${tlm}`].filter(Boolean).join('\n'));
+      fd.append('course_code', sub.course_code);
+      fd.append('semester', String(sub.semester));
+      fd.append('subject_code', sub.code);
+      fd.append('category', 'LESSON_PLAN');
+      fd.append('tags', 'lesson-plan');
+      fd.append('file', file);
+      await api.uploadStudyMaterial(fd);
+      playSuccess();
+      setIsModalOpen(false);
+      setTitle('');
+      setUnit('');
+      setTlm('');
+      setFile(null);
+      load();
+    } catch (err: any) {
+      playAlert();
+      alert(err.message || 'Upload failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Delete this lesson plan?')) return;
+    try {
+      await api.deleteStudyMaterial(id);
+      setPlans((p) => p.filter((x) => x.id !== id));
+    } catch (err: any) {
+      alert(err.message || 'Delete failed');
+    }
+  };
+
+  const q = search.toLowerCase();
   const filtered = plans.filter(
     (p) =>
-      p.title.toLowerCase().includes(search.toLowerCase()) ||
-      p.course.toLowerCase().includes(search.toLowerCase()) ||
-      p.unit.toLowerCase().includes(search.toLowerCase())
+      p.title.toLowerCase().includes(q) ||
+      p.subject_code.toLowerCase().includes(q) ||
+      (p.description || '').toLowerCase().includes(q)
   );
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
             <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            <span>NCTE & BSAEU Lesson Pedagogy Planner</span>
+            <span>Lesson Plans & Micro-Teaching</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Structured lesson designs, teaching learning materials (TLM), and instructional objectives
+            Upload B.Ed. lesson / micro-teaching plans for your assigned subjects
           </p>
         </div>
-
         <SoundButton
           onClick={() => {
             playPop();
@@ -94,175 +120,129 @@ export const LessonPlansView: React.FC = () => {
           }}
           icon={<Plus className="w-4 h-4" />}
           soundType="pop"
+          disabled={!subjects.length}
         >
-          Create New Lesson Plan
+          Upload Lesson Plan
         </SoundButton>
       </div>
 
-      {/* Search Bar */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+      {error && (
+        <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs font-bold text-rose-700 dark:text-rose-300">
+          {error}
+        </div>
+      )}
+      {!loading && !error && !subjects.length && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-xs font-bold text-amber-700 dark:text-amber-300">
+          No subjects are assigned to you yet. Ask the Super Admin to assign subjects in Academic Structure.
+        </div>
+      )}
+
+      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-3">
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by lesson topic, course, unit..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Search by title, subject, unit..."
+            className={`${inputCls} pl-10`}
           />
         </div>
-
-        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-          Showing {filtered.length} lesson plans
+        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+          {loading ? 'Loading…' : `${filtered.length} lesson plans`}
         </span>
       </div>
 
-      {/* Plans Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {filtered.map((plan) => (
           <div
             key={plan.id}
             className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-blue-300 dark:hover:border-blue-700 transition-all flex flex-col justify-between space-y-4"
           >
-            <div>
-              <div className="flex items-start justify-between gap-2">
-                <span className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-mono text-xs font-bold border border-blue-200 dark:border-blue-800">
-                  {plan.id} • {plan.course}
-                </span>
-
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                    plan.status === 'APPROVED'
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                      : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
-                  }`}
-                >
-                  {plan.status}
-                </span>
-              </div>
-
-              <h3 className="text-base font-extrabold text-slate-900 dark:text-white mt-3 leading-snug">
-                {plan.title}
-              </h3>
-              <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mt-1">
-                {plan.unit}
-              </div>
-
-              <div className="mt-4 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-2 text-xs">
-                <div>
-                  <span className="font-extrabold text-slate-700 dark:text-slate-300">Methodology: </span>
-                  <span className="text-slate-600 dark:text-slate-400">{plan.pedagogyType}</span>
-                </div>
-                <div>
-                  <span className="font-extrabold text-slate-700 dark:text-slate-300">Teaching Aids (TLM): </span>
-                  <span className="text-slate-600 dark:text-slate-400">{plan.tlm}</span>
-                </div>
-              </div>
+            <div className="space-y-2">
+              <span className="inline-block px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-mono text-xs font-bold border border-blue-200 dark:border-blue-800">
+                {plan.subject_code} • {plan.course_code} Sem {plan.semester}
+              </span>
+              <h3 className="text-sm font-black text-slate-900 dark:text-white">{plan.title}</h3>
+              {plan.description && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-line">{plan.description}</p>
+              )}
+              <p className="text-[11px] text-slate-400">
+                {plan.uploaded_by_name} • {plan.created_at ? new Date(plan.created_at).toLocaleDateString() : ''}
+              </p>
             </div>
-
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-              <span className="text-[11px] text-slate-400">By {plan.faculty} • {plan.updatedAt}</span>
+            <div className="flex items-center gap-2">
               <SoundButton
-                onClick={() => alert(`Exporting ${plan.title} as BSAEU Official Lesson Plan PDF...`)}
+                variant="secondary"
                 size="sm"
-                variant="outline"
-                soundType="pop"
                 icon={<Download className="w-3.5 h-3.5" />}
+                onClick={() => window.open(api.fileUrl(plan.file_url), '_blank')}
               >
-                Download PDF
+                Open
+              </SoundButton>
+              <SoundButton
+                variant="danger"
+                size="sm"
+                icon={<Trash2 className="w-3.5 h-3.5" />}
+                onClick={() => handleDelete(plan.id)}
+              >
+                Delete
               </SoundButton>
             </div>
           </div>
         ))}
+        {!loading && !filtered.length && !error && (
+          <div className="md:col-span-2 p-10 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-xs text-slate-500">
+            <BookOpen className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+            No lesson plans uploaded yet.
+          </div>
+        )}
       </div>
 
-      {/* Create Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-4">
-            <h3 className="text-lg font-black text-slate-900 dark:text-white">Create New Lesson Plan Draft</h3>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Lesson Topic Title
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Pedagogy of History: Sunderban Mangrove Heritage"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Target Course</label>
-                <select
-                  value={newCourse}
-                  onChange={(e) => setNewCourse(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-                >
-                  {courses.length > 0 ? (
-                    courses.flatMap((c) =>
-                      Array.from({ length: c.total_semesters || 4 }, (_, i) => (
-                        <option key={`${c.code}-${i + 1}`} value={`${c.name} Semester ${i + 1}`}>
-                          {c.code} - {c.name} (Semester {i + 1})
-                        </option>
-                      ))
-                    )
-                  ) : (
-                    <>
-                      <option value="B.Ed. Semester 1">B.Ed. Semester 1</option>
-                      <option value="B.Ed. Semester 2">B.Ed. Semester 2</option>
-                      <option value="B.Ed. Semester 3 (Internship)">B.Ed. Semester 3 (Internship)</option>
-                      <option value="B.Ed. Semester 4">B.Ed. Semester 4</option>
-                      <option value="D.El.Ed. Semester 1">D.El.Ed. Semester 1</option>
-                    </>
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Syllabus Unit</label>
-                <input
-                  type="text"
-                  value={newUnit}
-                  onChange={(e) => setNewUnit(e.target.value)}
-                  placeholder="e.g. Unit 2: Ecological Education"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Teaching Aids (TLM)
-                </label>
-                <input
-                  type="text"
-                  value={newTlm}
-                  onChange={(e) => setNewTlm(e.target.value)}
-                  placeholder="e.g. Maps, Botanical samples, Digital projector"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  Cancel
-                </button>
-                <SoundButton type="submit" soundType="success">
-                  Save & Submit Plan
-                </SoundButton>
-              </div>
-            </form>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Upload Lesson Plan">
+        <form onSubmit={handleCreate} className="space-y-3">
+          <div>
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Lesson Topic *</label>
+            <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} required />
           </div>
-        </div>
-      )}
+          <div>
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Subject *</label>
+            <select className={inputCls} value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.code} — {s.title} ({s.course_code} Sem {s.semester})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Unit / Chapter</label>
+            <input className={inputCls} value={unit} onChange={(e) => setUnit(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Teaching Learning Material (TLM)</label>
+            <input className={inputCls} value={tlm} onChange={(e) => setTlm(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Lesson Plan File (PDF/DOC) *</label>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,.ppt,.pptx"
+              className={inputCls}
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              required
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <SoundButton variant="secondary" type="button" onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </SoundButton>
+            <SoundButton type="submit" icon={<Upload className="w-4 h-4" />} disabled={saving}>
+              {saving ? 'Uploading…' : 'Upload'}
+            </SoundButton>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

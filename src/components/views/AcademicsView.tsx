@@ -17,7 +17,7 @@ import {
   Phone,
   UserCheck,
 } from 'lucide-react';
-import { Course, Subject, Student } from '../../types';
+import { Course, Subject, Student, Faculty } from '../../types';
 import { api } from '../../services/api';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
@@ -32,7 +32,8 @@ export const AcademicsView: React.FC = () => {
   const { playClick, playSuccess, playAlert, playPop } = useSound();
 
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<string>('BED');
+  const [selectedCourse, setSelectedCourse] = useState<string>('');
+  const [facultyOptions, setFacultyOptions] = useState<Faculty[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [activeTab, setActiveTab] = useState<'CURRICULUM' | 'STUDENTS'>('CURRICULUM');
@@ -60,32 +61,34 @@ export const AcademicsView: React.FC = () => {
   const [subjectFormData, setSubjectFormData] = useState<Partial<Subject>>({
     code: '',
     title: '',
-    course_code: 'BED',
+    course_code: '',
     semester: 1,
     credits: 4,
     full_marks: 100,
     pass_marks: 40,
     theory_marks: 70,
     practical_marks: 30,
-    faculty_name: 'Dr. Debabrata Roy',
+    faculty_id: '',
   });
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
 
   const loadAcademics = async () => {
     try {
-      const [cList, sList, stRes] = await Promise.all([
+      const [cList, stRes, fRes] = await Promise.all([
         api.getCourses(),
-        api.getSubjects(selectedCourse),
         api.getStudents(),
+        api.getFaculty(),
       ]);
       setCourses(cList);
+      setStudents(stRes.items || []);
+      setFacultyOptions(fRes.items || []);
       if (cList.length > 0 && !cList.some((c) => c.code === selectedCourse)) {
         setSelectedCourse(cList[0].code);
+        return;
       }
-      setSubjects(sList);
-      setStudents(stRes.items || []);
-    } catch (e) {
-      console.error(e);
+      setSubjects(selectedCourse ? await api.getSubjects(selectedCourse) : []);
+    } catch (e: any) {
+      alert(e.message || 'Failed to load academic structure');
     }
   };
 
@@ -169,7 +172,7 @@ export const AcademicsView: React.FC = () => {
       pass_marks: 40,
       theory_marks: 70,
       practical_marks: 30,
-      faculty_name: 'Dr. Debabrata Roy',
+      faculty_id: '',
     });
     setIsAddSubjectModal(true);
   };
@@ -177,7 +180,7 @@ export const AcademicsView: React.FC = () => {
   const handleOpenEditSubject = (sub: Subject) => {
     playPop();
     setSelectedSubjectId(sub.id);
-    setSubjectFormData({ ...sub });
+    setSubjectFormData({ ...sub, faculty_id: sub.faculty_id || '' });
     setIsEditSubjectModal(true);
   };
 
@@ -510,7 +513,7 @@ export const AcademicsView: React.FC = () => {
                         {s.full_marks}
                       </td>
                       <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-medium">
-                        {s.faculty_name}
+                        {s.faculty_name || <span className="text-amber-600">Not assigned</span>}
                       </td>
                       {isSuperAdmin && (
                         <td className="py-3.5 px-4 text-right">
@@ -995,13 +998,18 @@ export const AcademicsView: React.FC = () => {
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Faculty</label>
-              <input
-                type="text"
-                value={subjectFormData.faculty_name || ''}
-                onChange={(e) => setSubjectFormData({ ...subjectFormData, faculty_name: e.target.value })}
-                placeholder="Dr. Debabrata Roy"
+              <select
+                value={subjectFormData.faculty_id || ''}
+                onChange={(e) => setSubjectFormData({ ...subjectFormData, faculty_id: e.target.value })}
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
-              />
+              >
+                <option value="">— Not assigned —</option>
+                {facultyOptions.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.full_name} ({f.employee_id})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -1106,12 +1114,18 @@ export const AcademicsView: React.FC = () => {
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Assigned Faculty</label>
-              <input
-                type="text"
-                value={subjectFormData.faculty_name || ''}
-                onChange={(e) => setSubjectFormData({ ...subjectFormData, faculty_name: e.target.value })}
+              <select
+                value={subjectFormData.faculty_id || ''}
+                onChange={(e) => setSubjectFormData({ ...subjectFormData, faculty_id: e.target.value })}
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
-              />
+              >
+                <option value="">— Not assigned —</option>
+                {facultyOptions.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.full_name} ({f.employee_id})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

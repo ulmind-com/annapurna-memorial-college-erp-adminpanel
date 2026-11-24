@@ -332,7 +332,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch, onNavigate }) => {
           />
           <div className="hidden md:block text-left">
             <div className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
-              {user?.full_name || 'Principal Arnab Senapati'}
+              {user?.full_name}
             </div>
             <div className="flex items-center gap-1 mt-0.5">
               <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase border ${roleBadge.color}`}>

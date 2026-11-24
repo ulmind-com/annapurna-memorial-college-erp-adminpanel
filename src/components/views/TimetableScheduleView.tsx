@@ -28,7 +28,7 @@ export const TimetableScheduleView: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [facultyList, setFacultyList] = useState<any[]>([]);
   const [subjectList, setSubjectList] = useState<any[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<string>('BED');
+  const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [selectedSemester, setSelectedSemester] = useState<number>(1);
   const [selectedDay, setSelectedDay] = useState<'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT'>('MON');
   const [slotsList, setSlotsList] = useState<any[]>([]);
@@ -37,9 +37,9 @@ export const TimetableScheduleView: React.FC = () => {
   // Modal for adding a new timetable slot (Teachers & Admin only)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newSlot, setNewSlot] = useState({
-    time: '10:00 AM - 11:15 AM IST',
+    time: '',
     subject: '',
-    room: 'Room 201',
+    room: '',
     faculty: '',
     type: 'Theory Lecture',
   });
@@ -57,11 +57,24 @@ export const TimetableScheduleView: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [cList, fRes, sList, slots] = await Promise.all([
-        api.getCourses(),
-        api.getFaculty(),
-        api.getSubjects(),
-        api.getTimetableSlots(selectedCourse, selectedSemester, selectedDay),
+      let course = selectedCourse;
+      let sem = selectedSemester;
+      if (isStudent) {
+        const me = await api.getMyStudentProfile();
+        course = me.course_code;
+        sem = Number(me.semester);
+        if (course !== selectedCourse) setSelectedCourse(course);
+        if (sem !== selectedSemester) setSelectedSemester(sem);
+      }
+      const cList = await api.getCourses();
+      if (!course && cList.length) {
+        course = cList[0].code;
+        setSelectedCourse(course);
+      }
+      const [fRes, sList, slots] = await Promise.all([
+        isStudent ? Promise.resolve({ items: [] as any[] }) : api.getFaculty(),
+        api.getSubjects(course, sem),
+        course ? api.getTimetableSlots(course, sem, selectedDay) : Promise.resolve([]),
       ]);
       setCourses(cList);
       const fItems = Array.isArray(fRes) ? fRes : (fRes?.items || []);
@@ -73,15 +86,8 @@ export const TimetableScheduleView: React.FC = () => {
         setNewSlot((prev) => ({ ...prev, faculty: fItems[0].full_name }));
       }
 
-      // If student, automatically adapt to student's program if available
-      if (isStudent && user) {
-        const studentCourse = (user as any).course_code || (user as any).course;
-        if (studentCourse && cList.some((c) => c.code.toUpperCase() === studentCourse.toUpperCase())) {
-          setSelectedCourse(studentCourse.toUpperCase());
-        }
-      }
-    } catch (e) {
-      console.error('Error loading timetable data:', e);
+    } catch (e: any) {
+      alert(e.message || 'Error loading timetable');
     } finally {
       setLoading(false);
     }
@@ -96,8 +102,8 @@ export const TimetableScheduleView: React.FC = () => {
 
   const handleAddSlot = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSlot.subject.trim()) {
-      alert('Subject title is required.');
+    if (!newSlot.subject.trim() || !newSlot.time.trim() || !newSlot.room.trim()) {
+      alert('Time, subject and room are required.');
       return;
     }
 
@@ -110,8 +116,8 @@ export const TimetableScheduleView: React.FC = () => {
         time: newSlot.time.trim(),
         subject: newSlot.subject.trim(),
         class_label: `${activeCourseObj?.name || selectedCourse} Sem ${selectedSemester}`,
-        room: newSlot.room.trim() || 'Room 101',
-        faculty: newSlot.faculty.trim() || (facultyList[0]?.full_name || 'Faculty Member'),
+        room: newSlot.room.trim(),
+        faculty: newSlot.faculty.trim(),
         type: newSlot.type,
         status: 'Scheduled',
       });
@@ -119,9 +125,9 @@ export const TimetableScheduleView: React.FC = () => {
       setSlotsList((prev) => [...prev, created]);
       setIsAddModalOpen(false);
       setNewSlot({
-        time: '10:00 AM - 11:15 AM IST',
+        time: '',
         subject: '',
-        room: 'Room 201',
+        room: '',
         faculty: facultyList[0]?.full_name || '',
         type: 'Theory Lecture',
       });
@@ -201,6 +207,7 @@ export const TimetableScheduleView: React.FC = () => {
             </label>
             <select
               value={selectedCourse}
+              disabled={isStudent}
               onChange={(e) => {
                 playTab();
                 setSelectedCourse(e.target.value);
@@ -225,6 +232,7 @@ export const TimetableScheduleView: React.FC = () => {
                 <button
                   key={sem}
                   type="button"
+                  disabled={isStudent && sem !== selectedSemester}
                   onClick={() => {
                     playTab();
                     setSelectedSemester(sem);

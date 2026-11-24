@@ -4,11 +4,12 @@ import { SoundProvider } from './context/SoundContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { Layout } from './components/layout/Layout';
 import { LoginView } from './components/auth/LoginView';
+import { ResetPasswordView } from './components/auth/ResetPasswordView';
 import { TeacherDashboardView } from './components/views/TeacherDashboardView';
 import { SuperAdminDashboardView } from './components/views/SuperAdminDashboardView';
 import { StudentDashboardView } from './components/views/StudentDashboardView';
 import { MyClassesView } from './components/views/MyClassesView';
-import { TimetableScheduleView } from './components/views/TimetableScheduleView';
+import { ScheduleHubView } from './components/views/ScheduleHubView';
 import { LessonPlansView } from './components/views/LessonPlansView';
 import { AssignmentsView } from './components/views/AssignmentsView';
 import { AIQuizBuilderView } from './components/views/AIQuizBuilderView';
@@ -49,6 +50,11 @@ const AppContent: React.FC = () => {
     );
   }
 
+  const resetToken = new URLSearchParams(window.location.search).get('token');
+  if (window.location.pathname.startsWith('/reset-password') && resetToken) {
+    return <ResetPasswordView token={resetToken} />;
+  }
+
   // If user is not authenticated, render dedicated Multi-Role Login Portal!
   if (!user) {
     return <LoginView />;
@@ -67,7 +73,7 @@ const AppContent: React.FC = () => {
       case 'my-classes':
         return <MyClassesView />;
       case 'timetable':
-        return <TimetableScheduleView />;
+        return <ScheduleHubView />;
       case 'lesson-plans':
         return <LessonPlansView />;
       case 'assignments':

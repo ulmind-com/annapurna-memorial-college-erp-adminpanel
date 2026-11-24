@@ -337,6 +337,8 @@ export interface StudyMaterial {
   file_type: string;
   file_size_bytes: number;
   tags: string[];
+  category?: string;
+  uploaded_by_id?: string;
   uploaded_by_name: string;
   downloads_count: number;
   created_at: string;

@@ -22,7 +22,7 @@ import { Modal } from '../common/Modal';
 import { Pagination } from '../common/Pagination';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
-import { api } from '../../services/api';
+import { api, FacultyClass } from '../../services/api';
 import { Course } from '../../types';
 
 interface AssignmentItem {
@@ -89,7 +89,7 @@ export const AssignmentsView: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
-  const [selectedCourseCode, setSelectedCourseCode] = useState('BED');
+  const [selectedCourseCode, setSelectedCourseCode] = useState('');
   const [selectedSemester, setSelectedSemester] = useState(1);
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
@@ -107,6 +107,9 @@ export const AssignmentsView: React.FC = () => {
   const [submissionFileUrl, setSubmissionFileUrl] = useState('');
   const [submissionComments, setSubmissionComments] = useState('');
   const [isSubmittingWork, setIsSubmittingWork] = useState(false);
+  const [submissionFileName, setSubmissionFileName] = useState('');
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [myClasses, setMyClasses] = useState<FacultyClass[]>([]);
 
   // Teacher Review & Grade Modal
   const [reviewingAssignment, setReviewingAssignment] = useState<AssignmentItem | null>(null);
@@ -121,13 +124,25 @@ export const AssignmentsView: React.FC = () => {
         api.getCourses(),
         api.getAssignments(courseFilter !== 'ALL' ? courseFilter : undefined),
       ]);
-      setCourses(cList);
       setAssignments(aList);
-      if (cList.length > 0 && !cList.some((c) => c.code === selectedCourseCode)) {
-        setSelectedCourseCode(cList[0].code);
+      if (isTeacher) {
+        const me = await api.getMyFacultyProfile();
+        setMyClasses(me.classes);
+        const codes = new Set(me.classes.map((c) => c.course_code));
+        const mine = cList.filter((c) => codes.has(c.code));
+        setCourses(mine);
+        if (me.classes.length && !me.classes.some((c) => c.course_code === selectedCourseCode && c.semester === selectedSemester)) {
+          setSelectedCourseCode(me.classes[0].course_code);
+          setSelectedSemester(me.classes[0].semester);
+        }
+      } else {
+        setCourses(cList);
+        if (cList.length > 0 && !cList.some((c) => c.code === selectedCourseCode)) {
+          setSelectedCourseCode(cList[0].code);
+        }
       }
-    } catch (e) {
-      console.error('Error loading assignments:', e);
+    } catch (e: any) {
+      alert(e.message || 'Failed to load assignments');
     } finally {
       setLoading(false);
     }
@@ -192,6 +207,7 @@ export const AssignmentsView: React.FC = () => {
     setSubmittingAssignment(item);
     setSubmissionText(item.user_submission?.submission_text || '');
     setSubmissionFileUrl(item.user_submission?.file_url || '');
+    setSubmissionFileName((item.user_submission as any)?.file_name || '');
     setSubmissionComments('');
   };
 
@@ -199,7 +215,7 @@ export const AssignmentsView: React.FC = () => {
     e.preventDefault();
     if (!submittingAssignment) return;
     if (!submissionText.trim() && !submissionFileUrl.trim()) {
-      alert('Please enter your submission answer text or provide a document file URL');
+      alert('Please write your answer or upload your assignment file');
       return;
     }
 
@@ -208,6 +224,7 @@ export const AssignmentsView: React.FC = () => {
       await api.submitAssignment(submittingAssignment.id, {
         submission_text: submissionText,
         file_url: submissionFileUrl,
+        file_name: submissionFileName,
         comments: submissionComments,
       });
       playSuccess();
@@ -232,13 +249,13 @@ export const AssignmentsView: React.FC = () => {
       const drafts: Record<string, { marks: number; feedback: string }> = {};
       subs.forEach((s) => {
         drafts[s.id] = {
-          marks: s.marks_awarded !== undefined && s.marks_awarded !== null ? s.marks_awarded : item.maxMarks,
+          marks: s.marks_awarded !== undefined && s.marks_awarded !== null ? s.marks_awarded : 0,
           feedback: s.feedback || '',
         };
       });
       setGradingDrafts(drafts);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      alert(e.message || 'Failed to load submissions');
     } finally {
       setLoadingSubmissions(false);
     }
@@ -628,7 +645,11 @@ export const AssignmentsView: React.FC = () => {
               </label>
               <select
                 value={selectedCourseCode}
-                onChange={(e) => setSelectedCourseCode(e.target.value)}
+                onChange={(e) => {
+                  setSelectedCourseCode(e.target.value);
+                  const firstSem = myClasses.find((c) => c.course_code === e.target.value)?.semester;
+                  if (isTeacher && firstSem) setSelectedSemester(firstSem);
+                }}
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-semibold"
               >
                 {courses.map((c) => (
@@ -648,9 +669,12 @@ export const AssignmentsView: React.FC = () => {
                 onChange={(e) => setSelectedSemester(Number(e.target.value))}
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium"
               >
-                {Array.from(
-                  { length: courses.find((c) => c.code === selectedCourseCode)?.total_semesters || 4 },
-                  (_, i) => i + 1
+                {(isTeacher
+                  ? myClasses.filter((c) => c.course_code === selectedCourseCode).map((c) => c.semester)
+                  : Array.from(
+                      { length: courses.find((c) => c.code === selectedCourseCode)?.total_semesters || 4 },
+                      (_, i) => i + 1
+                    )
                 ).map((s) => (
                   <option key={s} value={s}>
                     Semester {s}
@@ -766,15 +790,36 @@ export const AssignmentsView: React.FC = () => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                File Attachment URL / Google Drive Document Link
+                Upload Assignment File (PDF / DOC / Image, max 15 MB)
               </label>
               <input
-                type="url"
-                value={submissionFileUrl}
-                onChange={(e) => setSubmissionFileUrl(e.target.value)}
-                placeholder="https://drive.google.com/... or PDF document link"
-                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono"
+                type="file"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                disabled={uploadingFile}
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setUploadingFile(true);
+                  try {
+                    const up = await api.uploadFile(f);
+                    setSubmissionFileUrl(up.url);
+                    setSubmissionFileName(up.file_name);
+                  } catch (err: any) {
+                    playAlert();
+                    alert(err.message || 'File upload failed');
+                  } finally {
+                    setUploadingFile(false);
+                  }
+                }}
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white"
               />
+              <div className="text-[11px] mt-1 text-slate-500">
+                {uploadingFile
+                  ? 'Uploading…'
+                  : submissionFileUrl
+                  ? <a href={api.fileUrl(submissionFileUrl)} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-bold">Attached: {submissionFileName || 'file'}</a>
+                  : 'No file attached'}
+              </div>
             </div>
 
             <div>
@@ -804,7 +849,7 @@ export const AssignmentsView: React.FC = () => {
                 variant="primary"
                 size="sm"
                 soundType="success"
-                disabled={isSubmittingWork}
+                disabled={isSubmittingWork || uploadingFile}
               >
                 {isSubmittingWork ? 'Submitting...' : 'Turn In Assignment'}
               </SoundButton>
@@ -833,7 +878,7 @@ export const AssignmentsView: React.FC = () => {
               <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
                 {submissionsList.map((sub) => {
                   const draft = gradingDrafts[sub.id] || {
-                    marks: sub.marks_awarded !== undefined ? sub.marks_awarded : reviewingAssignment.maxMarks,
+                    marks: sub.marks_awarded ?? 0,
                     feedback: sub.feedback || '',
                   };
 
@@ -874,7 +919,7 @@ export const AssignmentsView: React.FC = () => {
                       {sub.file_url && (
                         <div>
                           <a
-                            href={sub.file_url}
+                            href={api.fileUrl(sub.file_url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-bold hover:underline"

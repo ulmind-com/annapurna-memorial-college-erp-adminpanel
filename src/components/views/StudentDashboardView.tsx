@@ -65,58 +65,38 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
     };
   }, []);
 
+  const [loadError, setLoadError] = useState('');
+  const [todaySlots, setTodaySlots] = useState<any[]>([]);
+  const [principalName, setPrincipalName] = useState('');
+
   useEffect(() => {
     const loadStudentData = async () => {
       try {
-        // 1. Fetch student's record matching entity_id, email, roll, or name
-        const studentRes = await api.getStudents();
-        const found =
-          studentRes.items.find(
-            (s) =>
-              (user?.entity_id && (s.id === user.entity_id || (s as any)._id === user.entity_id)) ||
-              (user?.email && s.email.toLowerCase() === user.email.toLowerCase()) ||
-              (user?.roll_number && s.roll_number === user.roll_number) ||
-              (user?.full_name && s.full_name.toLowerCase() === user.full_name.toLowerCase())
-          ) || null;
-
-        if (found) {
-          setStudent(found);
-        }
-
-        // 2. Fetch marksheet
-        const msList = await api.getAllMarksheets();
-        const studentRoll = found?.roll_number || user?.roll_number;
-        const myMarksheet = msList.find(
-          (m) =>
-            (studentRoll && m.roll_number.toLowerCase() === studentRoll.toLowerCase()) ||
-            (found && m.student_id === found.id) ||
-            (user?.full_name && m.student_name.toLowerCase() === user.full_name.toLowerCase())
-        ) || null;
-        setMarksheet(myMarksheet && myMarksheet.status === 'PUBLISHED' ? myMarksheet : null);
-
-        // 3. Fetch Study Materials uploaded by teachers
-        const courseCode = found?.course_code || 'BED';
-        const materials = await api.getStudyMaterials({ course_code: courseCode });
+        const me = await api.getMyStudentProfile();
+        setStudent(me);
+        const [msList, materials, leaveList, subList, nList] = await Promise.all([
+          api.getAllMarksheets(),
+          api.getStudyMaterials(),
+          api.getLeaveApplications(),
+          api.getSubjects(me.course_code, me.semester),
+          api.getNotices(),
+        ]);
+        // Backend returns only this student's PUBLISHED marksheets; show the latest semester
+        const latest = [...msList].sort((x, y) => Number(y.semester) - Number(x.semester))[0] || null;
+        setMarksheet(latest);
         setStudyMaterials(materials);
-
-        // 4. Fetch Student Leaves
-        const leaveList = await api.getLeaveApplications();
-        const myLeaves = leaveList.filter(
-          (l) =>
-            (found && (l.student_id === found.id || l.roll_number === found.roll_number)) ||
-            (user?.full_name && l.student_name.toLowerCase() === user.full_name.toLowerCase())
-        );
-        setLeaves(myLeaves.length > 0 ? myLeaves : leaveList.slice(0, 2));
-
-        // 5. Fetch subjects for schedule
-        const subList = await api.getSubjects(courseCode);
+        setLeaves(leaveList);
         setSubjects(subList);
-
-        // 6. Fetch live campus notices
-        const nList = await api.getNotices();
         setNotices(nList);
-      } catch (e) {
-        console.error('Error loading student dashboard data:', e);
+        const today = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][new Date().getDay()];
+        const [slots, profile] = await Promise.all([
+          api.getTimetableSlots(undefined, undefined, today),
+          api.getCollegeProfile(),
+        ]);
+        setTodaySlots(slots);
+        setPrincipalName(profile.principal_name);
+      } catch (e: any) {
+        setLoadError(e.message || 'Failed to load your dashboard');
       }
     };
 
@@ -136,34 +116,22 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      alert(e.message || 'Download failed');
     }
   };
 
   const handleDownloadMaterial = (m: StudyMaterial) => {
     playSuccess();
-    if (m.file_url && m.file_url !== '/sample_study_material.pdf' && m.file_url !== '/sample_note.pdf') {
-      window.open(m.file_url, '_blank');
-    } else {
-      const noteContent = `ANNAPURNA MEMORIAL COLLEGE OF EDUCATION\nDIGITAL SYLLABUS VAULT\n\nTitle: ${m.title}\nCourse: ${m.course_code} (Semester ${m.semester})\nSubject: ${m.subject_code}\nUploaded By: ${m.uploaded_by_name}\nDate: ${m.created_at || new Date().toLocaleDateString()}\n\nDescription:\n${m.description || 'Comprehensive lecture notes and practicum guidelines prepared per BSAEU & NCTE curriculum.'}\n\nTopics Covered:\n${m.tags.join(', ')}\n\n(Official Certified Digital Material)`;
-      const blob = new Blob([noteContent], { type: 'text/plain;charset=utf-8' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${m.subject_code}_${m.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    }
+    api.trackDownload(m.id).catch(() => {});
+    window.open(api.fileUrl(m.file_url), '_blank');
   };
 
-  const displayName = student?.full_name || user?.full_name || 'Teacher Trainee';
-  const displayRoll = student?.roll_number || user?.roll_number || 'Roll Pending';
-  const displayCourse = student?.course_name || (student?.course_code ? `Program: ${student.course_code}` : 'Undergraduate Trainee');
+  const displayName = student?.full_name || user?.full_name || '';
+  const displayRoll = student?.roll_number || '—';
+  const displayCourse = student?.course_name || student?.course_code || '—';
   const displaySemester = student?.semester || 1;
-  const displayReg = student?.registration_number || 'Registration Pending';
+  const displayReg = student?.registration_number || '—';
   const displayAvatar =
     user?.avatar_url ||
     student?.avatar_url ||
@@ -173,6 +141,9 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
 
   return (
     <div className="space-y-6 text-slate-800 dark:text-slate-100">
+      {loadError && (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700">{loadError}</div>
+      )}
       {/* Student Welcome Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white p-6 md:p-8 shadow-lg">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -647,7 +618,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
                 </div>
 
                 <div className="text-right">
-                  <div className="font-bold text-slate-900">Dr. Arnab Senapati</div>
+                  <div className="font-bold text-slate-900">{principalName}</div>
                   <div className="text-[10px] text-slate-500">Principal & Chief Academic Officer</div>
                 </div>
               </div>
@@ -683,20 +654,16 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({ onNa
           Today's Class Schedule & Practicum Timing ({displayCourse})
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 text-xs">
-          {subjects.length > 0 ? (
-            subjects.slice(0, 3).map((sub, idx) => (
+          {todaySlots.length > 0 ? (
+            todaySlots.map((slot) => (
               <div
-                key={sub.code}
+                key={slot.id}
                 className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60"
               >
-                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
-                  {idx === 0 ? '09:30 AM - 10:15 AM' : idx === 1 ? '11:15 AM - 12:00 PM' : '02:00 PM - 03:30 PM'}
-                </span>
-                <div className="font-bold text-slate-900 dark:text-white mt-1">
-                  {sub.code}: {sub.title}
-                </div>
+                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{slot.time}</span>
+                <div className="font-bold text-slate-900 dark:text-white mt-1">{slot.subject}</div>
                 <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  {sub.faculty_name} • Pedagogy Room {204 + idx}
+                  {slot.faculty} • {slot.room} • {slot.type}
                 </div>
               </div>
             ))

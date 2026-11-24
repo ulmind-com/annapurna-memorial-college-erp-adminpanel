@@ -40,7 +40,7 @@ export const StudyMaterialsView: React.FC = () => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadDesc, setUploadDesc] = useState('');
-  const [uploadCourse, setUploadCourse] = useState('BED');
+  const [uploadCourse, setUploadCourse] = useState('');
   const [uploadSemester, setUploadSemester] = useState(1);
   const [uploadSubject, setUploadSubject] = useState('');
   const [uploadTags, setUploadTags] = useState('');
@@ -49,26 +49,33 @@ export const StudyMaterialsView: React.FC = () => {
 
   const loadAcademicsData = async () => {
     try {
-      const [cList, sList] = await Promise.all([
-        api.getCourses(),
-        api.getSubjects(),
-      ]);
-      setCourses(cList);
-      setSubjects(sList);
-      if (cList.length > 0 && !uploadCourse) {
-        setUploadCourse(cList[0].code);
+      const [cList, sList] = await Promise.all([api.getCourses(), api.getSubjects()]);
+      let allowedSubjects = sList;
+      let allowedCourses = cList;
+      if (isFaculty) {
+        const me = await api.getMyFacultyProfile();
+        const mine = new Set(me.subjects.map((x) => x.id));
+        allowedSubjects = sList.filter((x) => mine.has(x.id));
+        const codes = new Set(allowedSubjects.map((x) => x.course_code));
+        allowedCourses = cList.filter((c) => codes.has(c.code));
+        if (allowedSubjects.length) setUploadSemester(Number(allowedSubjects[0].semester));
       }
-    } catch (e) {
-      console.error('Error loading academic curriculum:', e);
+      setCourses(allowedCourses);
+      setSubjects(allowedSubjects);
+      if (allowedCourses.length > 0) {
+        setUploadCourse((prev) => (allowedCourses.some((c) => c.code === prev) ? prev : allowedCourses[0].code));
+      }
+    } catch (e: any) {
+      alert(e.message || 'Error loading academic curriculum');
     }
   };
 
   const loadMaterials = async () => {
     try {
       const data = await api.getStudyMaterials();
-      setMaterials(data);
-    } catch (e) {
-      console.error('Error loading study materials:', e);
+      setMaterials(data.filter((m) => m.category !== 'LESSON_PLAN'));
+    } catch (e: any) {
+      alert(e.message || 'Error loading study materials');
     }
   };
 
@@ -82,12 +89,7 @@ export const StudyMaterialsView: React.FC = () => {
     const relevantSubjects = subjects.filter(
       (s) => s.course_code === uploadCourse && Number(s.semester) === Number(uploadSemester)
     );
-    if (relevantSubjects.length > 0) {
-      setUploadSubject(relevantSubjects[0].code);
-    } else {
-      const anyCourseSub = subjects.filter((s) => s.course_code === uploadCourse);
-      setUploadSubject(anyCourseSub.length > 0 ? anyCourseSub[0].code : `${uploadCourse}-101`);
-    }
+    setUploadSubject(relevantSubjects.length > 0 ? relevantSubjects[0].code : '');
   }, [uploadCourse, uploadSemester, subjects]);
 
   const handleOpenUpload = () => {
@@ -103,6 +105,16 @@ export const StudyMaterialsView: React.FC = () => {
       alert('Please provide a title for the study material.');
       return;
     }
+    if (!uploadSubject) {
+      playAlert();
+      alert('No subject exists for this course & semester. Add subjects in Academic Structure first.');
+      return;
+    }
+    if (!selectedFile) {
+      playAlert();
+      alert('Please attach the file (PDF / DOC / PPT).');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -111,8 +123,8 @@ export const StudyMaterialsView: React.FC = () => {
       formData.append('description', uploadDesc.trim());
       formData.append('course_code', uploadCourse);
       formData.append('semester', String(uploadSemester));
-      formData.append('subject_code', uploadSubject || `${uploadCourse}-101`);
-      formData.append('tags', uploadTags.trim() || `Lecture Notes, ${uploadCourse}`);
+      formData.append('subject_code', uploadSubject);
+      formData.append('tags', uploadTags.trim());
       if (selectedFile) {
         formData.append('file', selectedFile);
       }
@@ -139,20 +151,17 @@ export const StudyMaterialsView: React.FC = () => {
 
   const handleDownload = (m: StudyMaterial) => {
     playSuccess();
-    if (m.file_url && m.file_url !== '/sample_study_material.pdf' && m.file_url !== '/sample_note.pdf') {
-      window.open(m.file_url, '_blank');
-    } else {
-      // Create a downloadable syllabus notes document
-      const noteContent = `ANNAPURNA MEMORIAL COLLEGE OF EDUCATION\nDIGITAL SYLLABUS VAULT\n\nTitle: ${m.title}\nCourse: ${m.course_code} (Semester ${m.semester})\nSubject: ${m.subject_code}\nUploaded By: ${m.uploaded_by_name}\nDate: ${m.created_at || new Date().toLocaleDateString()}\n\nDescription:\n${m.description || 'Comprehensive lecture notes and practicum guidelines prepared per BSAEU & NCTE curriculum.'}\n\nTopics Covered:\n${m.tags.join(', ')}\n\n(Official Certified Digital Material)`;
-      const blob = new Blob([noteContent], { type: 'text/plain;charset=utf-8' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${m.subject_code}_${m.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+    api.trackDownload(m.id).catch(() => {});
+    window.open(api.fileUrl(m.file_url), '_blank');
+  };
+
+  const handleDelete = async (m: StudyMaterial) => {
+    if (!window.confirm(`Delete "${m.title}"?`)) return;
+    try {
+      await api.deleteStudyMaterial(m.id);
+      setMaterials((prev) => prev.filter((x) => x.id !== m.id));
+    } catch (err: any) {
+      alert(err.message || 'Delete failed');
     }
   };
 
@@ -346,6 +355,11 @@ export const StudyMaterialsView: React.FC = () => {
                   >
                     Download
                   </SoundButton>
+                  {(isSuperAdmin || (isFaculty && m.uploaded_by_id === user?.id)) && (
+                    <SoundButton onClick={() => handleDelete(m)} size="sm" variant="danger" soundType="alert">
+                      Delete
+                    </SoundButton>
+                  )}
                 </div>
               </div>
             ))}
@@ -452,7 +466,7 @@ export const StudyMaterialsView: React.FC = () => {
                       </option>
                     ))
                   ) : (
-                    <option value={`${uploadCourse}-101`}>{uploadCourse}-101</option>
+                    <option value="">No subjects for this semester</option>
                   )}
                 </select>
               </div>

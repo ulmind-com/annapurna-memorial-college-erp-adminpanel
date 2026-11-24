@@ -9,7 +9,6 @@ interface AuthContextType {
   loading: boolean;
   activeRole: ActiveRole;
   login: (email: string, pass: string) => Promise<void>;
-  loginAsDemo: (role: ActiveRole) => Promise<void>;
   logout: () => void;
   isAdmin: boolean;
   isSuperAdmin: boolean;
@@ -23,7 +22,7 @@ const getInitialStoredUser = (): User | null => {
   if (typeof window === 'undefined') return null;
   const token = localStorage.getItem('annapurna_erp_token');
   const savedUser = localStorage.getItem('annapurna_current_user');
-  if (token && token !== 'null' && savedUser) {
+  if (token && token !== 'null' && !token.startsWith('mock_token_') && savedUser) {
     try {
       const parsed = JSON.parse(savedUser);
       if (parsed && (parsed.id || parsed.email)) return parsed;
@@ -48,29 +47,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         })
         .catch(() => {
-          // If network error/timeout, keep current stored session active
+          // 401 is handled by the API client (session_expired event); network errors keep the session
         });
     }
+    const onExpired = () => setUser(null);
+    window.addEventListener('annapurna_session_expired', onExpired);
+    return () => window.removeEventListener('annapurna_session_expired', onExpired);
   }, []);
 
   const login = async (email: string, pass: string) => {
     // Authenticate and immediately set user without triggering full-screen blocking loader
-    const res = await api.login(email, pass);
-    setUser(res.user);
-  };
-
-  const loginAsDemo = async (role: ActiveRole) => {
-    let email = 'admin@annapurnacollege.edu.in';
-    let pass = 'Admin@123456';
-
-    if (role === 'TEACHER') {
-      email = 'faculty.soumen@annapurnacollege.edu.in';
-      pass = 'Teacher@Amce2024#';
-    } else if (role === 'STUDENT') {
-      email = 'student@annapurnacollege.org';
-      pass = 'Student@Amce2024#';
-    }
-
     const res = await api.login(email, pass);
     setUser(res.user);
   };
@@ -105,7 +91,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         activeRole,
         login,
-        loginAsDemo,
         logout,
         isAdmin,
         isSuperAdmin,

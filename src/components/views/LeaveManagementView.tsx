@@ -60,19 +60,11 @@ export const LeaveManagementView: React.FC = () => {
 
   const loadLeaves = async () => {
     try {
-      const [data, sRes] = await Promise.all([
-        api.getLeaveApplications(),
-        api.getStudents(),
-      ]);
-      setLeaves(data);
-      if (user?.email) {
-        const found = sRes.items.find(
-          (s) => s.email?.toLowerCase() === user.email?.toLowerCase() || s.id === user.id
-        );
-        if (found) setMatchedStudent(found);
-      }
-    } catch (e) {
-      console.error(e);
+      // Backend scopes the list: student = own, teacher = assigned classes, admin = all
+      setLeaves(await api.getLeaveApplications());
+      if (isStudent) setMatchedStudent(await api.getMyStudentProfile());
+    } catch (e: any) {
+      alert(e.message || 'Failed to load leave applications');
     }
   };
 
@@ -96,22 +88,17 @@ export const LeaveManagementView: React.FC = () => {
       return;
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    if (endDate < startDate) {
+      alert('End date cannot be before start date.');
+      return;
+    }
 
     try {
+      // Student identity, course & day count are derived server-side
       await api.applyForLeave({
-        student_id: matchedStudent?.id || user?.id || 'st-1',
-        student_name: matchedStudent?.full_name || user?.full_name || 'Enrolled Student',
-        roll_number: matchedStudent?.roll_number || 'AMC-TR-2024',
-        course_code: matchedStudent?.course_code || 'BED',
-        semester: matchedStudent?.semester || 1,
         leave_type: leaveType,
         start_date: startDate,
         end_date: endDate,
-        total_days: totalDays,
         reason,
       });
 
@@ -147,8 +134,7 @@ export const LeaveManagementView: React.FC = () => {
       await api.reviewLeaveApplication(
         reviewModal.leave.id,
         reviewModal.action,
-        reviewModal.remarks,
-        user?.full_name || 'Academic Authority'
+        reviewModal.remarks
       );
       playSuccess();
       setReviewModal({ isOpen: false, leave: null, action: 'APPROVED', remarks: '' });
@@ -159,12 +145,6 @@ export const LeaveManagementView: React.FC = () => {
   };
 
   const filteredLeaves = leaves.filter((l) => {
-    if (isStudent) {
-      const myRoll = matchedStudent?.roll_number || user?.roll_number;
-      const isMyLeave = (myRoll && l.roll_number === myRoll) || l.student_id === user?.id || l.student_name === user?.full_name || l.roll_number === 'AMC-BED-2024-001';
-      if (!isMyLeave) return false;
-    }
-
     const matchesSearch =
       l.student_name.toLowerCase().includes(search.toLowerCase()) ||
       l.roll_number.toLowerCase().includes(search.toLowerCase()) ||

@@ -64,10 +64,11 @@ export const StudentFeedbackView: React.FC = () => {
   const loadFeedbacks = async () => {
     try {
       setLoading(true);
+      const me = isStudent ? await api.getMyStudentProfile() : null;
       const [data, facs, subs, cList] = await Promise.all([
         api.getStudentFeedbacks(),
         api.getFaculty(),
-        api.getSubjects(),
+        me ? api.getSubjects(me.course_code, me.semester) : api.getSubjects(),
         api.getCourses(),
       ]);
       setFeedbacks(data);
@@ -78,12 +79,13 @@ export const StudentFeedbackView: React.FC = () => {
 
       if (subs.length > 0 && !subjectCode) {
         setSubjectCode(subs[0].code);
+        if (subs[0].faculty_name) setFacultyName(subs[0].faculty_name);
       }
       if (facultyArr.length > 0 && !facultyName) {
         setFacultyName(facultyArr[0].full_name);
       }
-    } catch (e) {
-      console.error('Error loading feedback data:', e);
+    } catch (e: any) {
+      alert(e.message || 'Failed to load feedback');
     } finally {
       setLoading(false);
     }
@@ -102,18 +104,10 @@ export const StudentFeedbackView: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      // Determine student course dynamically from user profile or matching subject
-      const studentCourse = (user as any)?.course_code || (user as any)?.course || 'GENERAL';
-      const studentSemester = (user as any)?.semester || 1;
-
+      // Student identity, course & semester are derived server-side
       await api.submitFeedback({
-        student_id: user?.id || 'st-1',
-        student_name: user?.full_name || 'Enrolled Student',
-        roll_number: (user as any)?.roll_number || user?.id || 'AMC-TR',
-        course_code: studentCourse,
-        semester: Number(studentSemester),
-        subject_code: subjectCode || (subjectList[0]?.code || 'N/A'),
-        faculty_name: facultyName || (facultyList[0]?.full_name || 'Faculty Member'),
+        subject_code: subjectCode || undefined,
+        faculty_name: facultyName || undefined,
         category,
         rating,
         comments: comments.trim(),
@@ -244,7 +238,11 @@ export const StudentFeedbackView: React.FC = () => {
                   </label>
                   <select
                     value={subjectCode}
-                    onChange={(e) => setSubjectCode(e.target.value)}
+                    onChange={(e) => {
+                      setSubjectCode(e.target.value);
+                      const fn = subjectList.find((x) => x.code === e.target.value)?.faculty_name;
+                      if (fn) setFacultyName(fn);
+                    }}
                     className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white"
                   >
                     {subjectList.map((s) => (

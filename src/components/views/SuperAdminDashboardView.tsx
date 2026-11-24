@@ -37,7 +37,7 @@ import {
   Legend,
 } from 'recharts';
 import collegeLogo from '../../assets/logo.png';
-import { api } from '../../services/api';
+import { api, CollegeProfile, EMPTY_COLLEGE_PROFILE } from '../../services/api';
 import { Marksheet, LeaveApplication, StudentFeedback, Student, Faculty, Course } from '../../types';
 import { SoundButton } from '../common/SoundButton';
 import { Badge } from '../common/Badge';
@@ -58,17 +58,8 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
   const { playHaptic, playApprove, playSuccess, playPop } = useSound();
 
   // College Profile & Institutional Settings (Editable by Super Admin)
-  const [collegeProfile, setCollegeProfile] = useState(() => {
-    const saved = localStorage.getItem('annapurna_college_profile');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // fallback
-      }
-    }
-    return api.getCollegeProfile();
-  });
+  const [collegeProfile, setCollegeProfile] = useState<CollegeProfile>(EMPTY_COLLEGE_PROFILE);
+  const [assignments, setAssignments] = useState<any[]>([]);
 
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [profileFormData, setProfileFormData] = useState(collegeProfile);
@@ -81,8 +72,8 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
       ((ms.subject_scores || (ms as any).subjects || []) as any[]).forEach((s: any) => {
         const code = s.subject_code || s.code || 'SUBJ';
         const name = s.subject_name || s.title || code;
-        const total = (Number(s.theory_marks) || 0) + (Number(s.practical_marks) || 0);
-        const max = Number(s.full_marks) || 100;
+        const total = Number(s.total_obtained) || 0;
+        const max = Number(s.total_maximum || s.max_marks) || 100;
         const percentage = max > 0 ? (total / max) * 100 : total;
         if (!subjMap[code]) {
           subjMap[code] = { totalMarks: 0, count: 0, passCount: 0, name };
@@ -109,7 +100,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
     ).length;
     return {
       name: `${c.name} (${c.code})`,
-      value: studentCount > 0 ? studentCount : (c.max_intake || 0),
+      value: studentCount,
       enrolled: studentCount,
       intake: c.max_intake || 0,
       color: palette[i % palette.length],
@@ -119,14 +110,18 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
-        const [ms, lv, fb, sRes, fList, cList] = await Promise.all([
+        const [ms, lv, fb, sRes, fList, cList, profile, asg] = await Promise.all([
           api.getAllMarksheets(),
           api.getLeaveApplications(),
           api.getStudentFeedbacks(),
           api.getStudents(),
           api.getFaculty(),
           api.getCourses(),
+          api.getCollegeProfile(),
+          api.getAssignments(),
         ]);
+        setCollegeProfile(profile);
+        setAssignments(asg);
         setMarksheets(ms);
         setLeaves(lv);
         setFeedbacks(fb);
@@ -148,6 +143,10 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
 
   const handleQuickApprove = async (id: string) => {
     try {
+      const ms = marksheets.find((m) => m.id === id);
+      if (ms?.status === 'SUBMITTED_BY_FACULTY') {
+        await api.executeMarksheetAction(id, 'VERIFY', 'Verified by Principal desk.');
+      }
       await api.executeMarksheetAction(id, 'APPROVE', 'Cleared by Principal Executive desk.');
       playApprove();
       const updated = await api.getAllMarksheets();
@@ -162,8 +161,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
       await api.reviewLeaveApplication(
         id,
         'APPROVED',
-        'Sanctioned by Principal Desk.',
-        collegeProfile.principal_name || 'Dr. Arnab Senapati'
+        'Sanctioned by Principal Desk.'
       );
       playSuccess();
       const updatedLeaves = await api.getLeaveApplications();
@@ -179,13 +177,16 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
     setIsEditProfileModalOpen(true);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setCollegeProfile(profileFormData);
-    localStorage.setItem('annapurna_college_profile', JSON.stringify(profileFormData));
-    api.updateCollegeProfile(profileFormData);
-    playSuccess();
-    setIsEditProfileModalOpen(false);
+    try {
+      const saved = await api.updateCollegeProfile(profileFormData);
+      setCollegeProfile({ ...EMPTY_COLLEGE_PROFILE, ...saved });
+      playSuccess();
+      setIsEditProfileModalOpen(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to save college profile');
+    }
   };
 
   // Marksheet Lifecycle Pipeline counts
@@ -198,13 +199,13 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
   };
 
   // Dynamic Monitored Tasks & Submission Rates from assignments system
-  const dynamicAssignments = api.getCachedList<any>('amce_assignments', []);
-  const totalAssignedTasks = dynamicAssignments.length > 0 ? dynamicAssignments.length : 8;
-  const totalAssignedSlots = dynamicAssignments.reduce((acc: number, a: any) => acc + (a.totalAssigned || 50), 0) || (totalAssignedTasks * 50);
-  const totalSubmittedTasks = dynamicAssignments.reduce((acc: number, a: any) => acc + (a.submittedCount || 44), 0) || Math.round(totalAssignedSlots * 0.94);
+  const dynamicAssignments = assignments;
+  const totalAssignedTasks = dynamicAssignments.length;
+  const totalAssignedSlots = dynamicAssignments.reduce((acc: number, a: any) => acc + (a.totalAssigned || 0), 0);
+  const totalSubmittedTasks = dynamicAssignments.reduce((acc: number, a: any) => acc + (a.submittedCount || 0), 0);
   const dynamicSubmissionRate = totalAssignedSlots > 0
     ? ((totalSubmittedTasks / totalAssignedSlots) * 100).toFixed(1)
-    : '95.6';
+    : '0.0';
 
   // Dynamic Marksheet Publication & Certification Funnel
   const totalMarksheets = marksheets.length;
@@ -220,23 +221,23 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
   const totalFeedbacks = feedbacks.length;
   const avgRating = totalFeedbacks > 0
     ? (feedbacks.reduce((acc, f) => acc + (f.rating || 5), 0) / totalFeedbacks).toFixed(1)
-    : '4.9';
+    : '0.0';
   const roundedRating = Math.round(parseFloat(avgRating));
 
   const teachingFeedbacks = feedbacks.filter((f) => f.category === 'TEACHING_METHODOLOGY' || f.category === 'CURRICULUM' || !f.category);
   const teachingSatisfaction = teachingFeedbacks.length > 0
     ? Math.round((teachingFeedbacks.filter((f) => (f.rating || 5) >= 4).length / teachingFeedbacks.length) * 100)
-    : 98;
+    : 0;
 
   const materialFeedbacks = feedbacks.filter((f) => f.category === 'PRACTICUM_LAB' || f.category === 'CURRICULUM');
   const materialSatisfaction = materialFeedbacks.length > 0
     ? Math.round((materialFeedbacks.filter((f) => (f.rating || 5) >= 4).length / materialFeedbacks.length) * 100)
-    : 96;
+    : 0;
 
   const facilityFeedbacks = feedbacks.filter((f) => f.category === 'FACILITIES' || f.category === 'GENERAL');
   const facilitySatisfaction = facilityFeedbacks.length > 0
     ? Math.round((facilityFeedbacks.filter((f) => (f.rating || 5) >= 4).length / facilityFeedbacks.length) * 100)
-    : 92;
+    : 0;
 
   // Dynamic Leaves Approved
   const clearedLeavesCount = leaves.filter((l) => l.status === 'APPROVED').length;
@@ -280,7 +281,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
                 </span>
               </div>
               <h1 className="text-2xl lg:text-3xl font-black tracking-tight leading-tight">
-                {collegeProfile.name}
+                {collegeProfile.name || 'College profile not set — click Edit Profile'}
               </h1>
               <div className="text-xs text-blue-100 flex flex-wrap items-center gap-2 font-medium">
                 <span className="flex items-center gap-1 font-semibold">
@@ -724,7 +725,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
                 </div>
               </div>
               <div className="text-xs text-slate-500 mt-1 font-medium">
-                Based on {totalFeedbacks > 0 ? totalFeedbacks : 42} Anonymous Trainee Submissions
+                Based on {totalFeedbacks} Trainee Submissions
               </div>
             </div>
           </div>
@@ -859,7 +860,7 @@ export const SuperAdminDashboardView: React.FC<SuperAdminDashboardViewProps> = (
 
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Campus Address (Kashinagar, South 24 Parganas) *
+              Campus Address *
             </label>
             <input
               type="text"

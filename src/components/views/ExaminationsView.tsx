@@ -40,15 +40,18 @@ export const ExaminationsView: React.FC = () => {
   const { activeRole, user } = useAuth();
   const isStudent = activeRole === 'STUDENT';
   const isSuperAdmin = activeRole === 'SUPER_ADMIN';
+  const isTeacher = activeRole === 'TEACHER';
+  const [mySubjectCodes, setMySubjectCodes] = useState<string[]>([]);
+  const [principalName, setPrincipalName] = useState('');
 
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<string>('BED');
+  const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [selectedSemester, setSelectedSemester] = useState<number>(1);
   const [students, setStudents] = useState<Student[]>([]);
   const [courseSubjects, setCourseSubjects] = useState<Subject[]>([]);
 
   const [examinations, setExaminations] = useState<Examination[]>([]);
-  const [selectedExamId, setSelectedExamId] = useState<string>('exam-1');
+  const [selectedExamId, setSelectedExamId] = useState<string>('');
   const [marksheets, setMarksheets] = useState<Marksheet[]>([]);
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [search, setSearch] = useState<string>('');
@@ -106,8 +109,7 @@ export const ExaminationsView: React.FC = () => {
       const res = await api.publishResults(selectedCourse, selectedSemester);
       playSuccess();
       alert(res.message || 'Results published successfully!');
-      const allMs = await api.getAllMarksheets();
-      setMarksheets(allMs);
+      await refreshMarksheets();
     } catch (err: any) {
       playAlert();
       alert(err.message || 'Failed to publish results');
@@ -118,29 +120,42 @@ export const ExaminationsView: React.FC = () => {
 
   const { playClick, playSuccess, playApprove, playAlert, playPop, playTab } = useSound();
 
+  const refreshMarksheets = async () => {
+    const allMs = await api.getAllMarksheets();
+    setMarksheets(allMs);
+    return allMs;
+  };
+
   const loadData = async () => {
     try {
-      const [exams, allMs, cList, stRes] = await Promise.all([
+      const [exams, allMs, cListAll, stRes, tpl] = await Promise.all([
         api.getExaminations(),
         api.getAllMarksheets(),
         api.getCourses(),
-        api.getStudents(),
+        isStudent ? Promise.resolve({ items: [] as Student[], total: 0 }) : api.getStudents(),
+        api.getMarksheetTemplate(),
       ]);
-      setExaminations(exams);
-      if (exams.length > 0 && !selectedExamId) {
-        setSelectedExamId(exams[0].id);
+      let cList = cListAll;
+      if (isTeacher) {
+        const me = await api.getMyFacultyProfile();
+        setMySubjectCodes(me.subjects.map((x) => x.code));
+        const codes = new Set(me.classes.map((c) => c.course_code));
+        cList = cListAll.filter((c) => codes.has(c.code));
       }
+      setExaminations(exams);
       setMarksheets(allMs);
       setCourses(cList);
-      if (cList.length > 0 && !cList.some((c) => c.code === selectedCourse)) {
-        setSelectedCourse(cList[0].code);
-      }
       setStudents(stRes.items || []);
-
-      const subs = await api.getSubjects(selectedCourse);
-      setCourseSubjects(subs);
-    } catch (e) {
-      console.error(e);
+      if (tpl && Object.keys(tpl).length) setTemplateConfig((prev) => ({ ...prev, ...tpl }));
+      api.getCollegeProfile().then((p) => setPrincipalName(p.principal_name)).catch(() => {});
+      const course = cList.some((c) => c.code === selectedCourse) ? selectedCourse : cList[0]?.code || '';
+      if (course !== selectedCourse) {
+        setSelectedCourse(course);
+        return; // effect re-runs with the new course
+      }
+      if (course) setCourseSubjects(await api.getSubjects(course));
+    } catch (e: any) {
+      alert(e.message || 'Failed to load examinations data');
     }
   };
 
@@ -189,8 +204,7 @@ export const ExaminationsView: React.FC = () => {
       }
 
       setActionModal({ isOpen: false, marksheet: null, action: 'APPROVE', remarks: '' });
-      const updated = await api.getExamMarksheets(selectedExamId || 'exam-1');
-      setMarksheets(updated);
+      const updated = await refreshMarksheets();
       if (selectedMarksheet) {
         const refreshed = updated.find((m) => m.id === selectedMarksheet.id);
         if (refreshed) setSelectedMarksheet(refreshed);
@@ -244,7 +258,32 @@ export const ExaminationsView: React.FC = () => {
   const handleOpenEditScores = (ms: Marksheet) => {
     playPop();
     setEditingMarksheet(ms);
-    setEditScores(JSON.parse(JSON.stringify(ms.subject_scores)));
+    const rows: any[] = JSON.parse(JSON.stringify(ms.subject_scores || []));
+    const have = new Set(rows.map((r) => r.subject_code));
+    courseSubjects
+      .filter(
+        (sub) =>
+          sub.course_code === ms.course_code &&
+          Number(sub.semester) === Number(ms.semester) &&
+          !have.has(sub.code) &&
+          (!isTeacher || mySubjectCodes.includes(sub.code))
+      )
+      .forEach((sub) =>
+        rows.push({
+          subject_code: sub.code,
+          subject_title: sub.title,
+          credits: sub.credits || 4,
+          internal_marks: 0,
+          external_marks: 0,
+          internal_max: sub.practical_marks ?? 30,
+          external_max: sub.theory_marks ?? 70,
+          total_obtained: 0,
+          total_maximum: (sub.practical_marks ?? 30) + (sub.theory_marks ?? 70),
+          letter_grade: '-',
+          grade_point: 0,
+        })
+      );
+    setEditScores(rows);
     setEditRemarks(ms.remarks || '');
   };
 
@@ -283,8 +322,7 @@ export const ExaminationsView: React.FC = () => {
       });
       playSuccess();
       setEditingMarksheet(null);
-      const updated = await api.getExamMarksheets(selectedExamId || 'exam-1');
-      setMarksheets(updated);
+      const updated = await refreshMarksheets();
       if (selectedMarksheet && selectedMarksheet.id === editingMarksheet.id) {
         setSelectedMarksheet(updated.find((m) => m.id === editingMarksheet.id) || null);
       }
@@ -295,84 +333,36 @@ export const ExaminationsView: React.FC = () => {
 
   const handleOpenGenerate = (st: Student) => {
     playPop();
+    const semSubjects = courseSubjects.filter(
+      (s) =>
+        Number(s.semester) === Number(selectedSemester) && (!isTeacher || mySubjectCodes.includes(s.code))
+    );
+    if (semSubjects.length === 0) {
+      playAlert();
+      alert(
+        isTeacher
+          ? 'You have no subjects assigned in this course & semester.'
+          : 'No subjects found for this course & semester. Add subjects in Academic Structure first.'
+      );
+      return;
+    }
     setGeneratingStudent(st);
-
-    const semSubjects = courseSubjects.filter((s) => Number(s.semester) === Number(selectedSemester));
-
-    let defaultScores: any[] = [];
-    if (semSubjects.length > 0) {
-      defaultScores = semSubjects.map((s) => ({
+    setGenerateScores(
+      semSubjects.map((s) => ({
         subject_code: s.code,
         subject_title: s.title,
         credits: s.credits || 4,
-        internal_marks: 52,
-        external_marks: 24,
-        total_obtained: 76,
-        total_maximum: s.full_marks || 100,
-        letter_grade: 'A',
-        grade_point: 8,
-      }));
-    } else {
-      defaultScores = [
-        {
-          subject_code: `${selectedCourse}-${selectedSemester}01`,
-          subject_title: 'Core Discipline & Advanced Principles I',
-          credits: 4,
-          internal_marks: 55,
-          external_marks: 25,
-          total_obtained: 80,
-          total_maximum: 100,
-          letter_grade: 'A+',
-          grade_point: 9,
-        },
-        {
-          subject_code: `${selectedCourse}-${selectedSemester}02`,
-          subject_title: 'Theoretical Foundations & Methods II',
-          credits: 4,
-          internal_marks: 54,
-          external_marks: 24,
-          total_obtained: 78,
-          total_maximum: 100,
-          letter_grade: 'A',
-          grade_point: 8,
-        },
-        {
-          subject_code: `${selectedCourse}-${selectedSemester}03`,
-          subject_title: 'Assessment, Analysis & Evaluation Systems',
-          credits: 4,
-          internal_marks: 56,
-          external_marks: 26,
-          total_obtained: 82,
-          total_maximum: 100,
-          letter_grade: 'A+',
-          grade_point: 9,
-        },
-        {
-          subject_code: `${selectedCourse}-${selectedSemester}04`,
-          subject_title: 'Technology Integration & Applied Systems',
-          credits: 4,
-          internal_marks: 58,
-          external_marks: 27,
-          total_obtained: 85,
-          total_maximum: 100,
-          letter_grade: 'A+',
-          grade_point: 9,
-        },
-        {
-          subject_code: `${selectedCourse}-${selectedSemester}05`,
-          subject_title: 'Practicum Lab, Project File & Viva Voce',
-          credits: 4,
-          internal_marks: 62,
-          external_marks: 26,
-          total_obtained: 88,
-          total_maximum: 100,
-          letter_grade: 'O',
-          grade_point: 10,
-        },
-      ];
-    }
-    setGenerateScores(defaultScores);
-    setGenerateRemarks('All semester curriculum modules completed with required institutional attendance.');
+        internal_marks: 0,
+        external_marks: 0,
+        internal_max: s.practical_marks ?? 30,
+        external_max: s.theory_marks ?? 70,
+        total_obtained: 0,
+        total_maximum: (s.practical_marks ?? 30) + (s.theory_marks ?? 70),
+        letter_grade: '-',
+        grade_point: 0,
+      }))
+    );
+    setGenerateRemarks('');
     setIsGenerateModalOpen(true);
   };
 
@@ -403,53 +393,24 @@ export const ExaminationsView: React.FC = () => {
   const handleSaveGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!generatingStudent) return;
-
-    let totalObt = 0;
-    let totalMax = 0;
-    generateScores.forEach((s) => {
-      totalObt += (Number(s.internal_marks) || 0) + (Number(s.external_marks) || 0);
-      totalMax += Number(s.total_maximum) || 100;
-    });
-    const pct = totalMax > 0 ? Number(((totalObt / totalMax) * 100).toFixed(1)) : 0;
-    const sgpa = Number((pct / 10).toFixed(2));
-    const activeCourseObj = courses.find((c) => c.code === selectedCourse);
-
-    const newMarksheetData: Partial<Marksheet> = {
-      exam_id: selectedExamId || 'exam-dynamic',
-      exam_title: `${activeCourseObj?.name || selectedCourse} Semester ${selectedSemester} Examination 2025-2026`,
-      student_id: generatingStudent.id,
-      roll_number: generatingStudent.roll_number,
-      registration_number: generatingStudent.registration_number,
-      student_name: generatingStudent.full_name,
-      course_code: selectedCourse,
-      course_name: activeCourseObj?.name || generatingStudent.course_name || selectedCourse,
-      semester: selectedSemester,
-      academic_session: generatingStudent.academic_session || '2024-2026',
-      subject_scores: generateScores,
-      total_marks_obtained: totalObt,
-      total_marks_maximum: totalMax,
-      grand_max_marks: totalMax,
-      percentage: pct,
-      overall_percentage: pct,
-      sgpa,
-      cgpa: sgpa,
-      letter_grade: pct >= 80 ? 'A+' : pct >= 70 ? 'A' : pct >= 60 ? 'B+' : pct >= 40 ? 'B' : 'F',
-      result_status: pct >= 40 ? 'PASS' : 'FAIL',
-      status: 'PUBLISHED',
-      qr_code_hash: `AMCE-${generatingStudent.roll_number}-S${selectedSemester}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
-      remarks: generateRemarks,
-    };
-
     try {
-      const saved = await api.saveMarksheet(newMarksheetData);
+      // Grades, SGPA, result and status are computed server-side
+      const saved = await api.saveMarksheet({
+        exam_id: examinations.find((x) => x.id === selectedExamId)?.id,
+        student_id: generatingStudent.id,
+        semester: selectedSemester,
+        subject_scores: generateScores,
+        remarks: generateRemarks,
+      });
       playSuccess();
       setIsGenerateModalOpen(false);
       setGeneratingStudent(null);
-      const allMs = await api.getAllMarksheets();
-      setMarksheets(allMs);
+      await refreshMarksheets();
       setSelectedMarksheet(saved);
+      if (isTeacher) alert('Marks saved as DRAFT. Click "Submit" to send them to the Principal for approval.');
     } catch (err: any) {
-      alert(err.message || 'Failed to generate marksheet');
+      playAlert();
+      alert(err.message || 'Failed to save marks');
     }
   };
 
@@ -633,7 +594,7 @@ export const ExaminationsView: React.FC = () => {
 
               <div className="text-right">
                 <div className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
-                  Dr. Arnab Senapati, M.Ed., Ph.D.
+                  {principalName}
                 </div>
                 <div className="text-[11px] text-slate-400">Principal & Chief Controller of Examinations</div>
               </div>
@@ -1043,7 +1004,7 @@ export const ExaminationsView: React.FC = () => {
                           <div>
                             <div className="font-extrabold text-slate-900 dark:text-white">{st.full_name}</div>
                             <div className="text-[10px] text-slate-400 font-mono">
-                              {st.course_code || selectedCourse} • {st.academic_session || '2024-2026'}
+                              {st.course_code || selectedCourse} • {st.academic_session}
                             </div>
                           </div>
                         </div>
@@ -1082,7 +1043,7 @@ export const ExaminationsView: React.FC = () => {
                                 Statement
                               </button>
 
-                              {isSuperAdmin && (
+                              {(isSuperAdmin || (isTeacher && ['DRAFT', 'REJECTED'].includes(studentMs.status))) && (
                                 <button
                                   type="button"
                                   onClick={() => handleOpenEditScores(studentMs)}
@@ -1093,7 +1054,7 @@ export const ExaminationsView: React.FC = () => {
                                 </button>
                               )}
 
-                              {studentMs.status === 'DRAFT' && (
+                              {['DRAFT', 'REJECTED'].includes(studentMs.status) && (
                                 <SoundButton
                                   onClick={() => handleActionClick(studentMs, 'SUBMIT')}
                                   size="sm"
@@ -1105,7 +1066,7 @@ export const ExaminationsView: React.FC = () => {
                                 </SoundButton>
                               )}
 
-                              {studentMs.status === 'SUBMITTED_BY_FACULTY' && (
+                              {isSuperAdmin && studentMs.status === 'SUBMITTED_BY_FACULTY' && (
                                 <>
                                   <SoundButton
                                     onClick={() => handleActionClick(studentMs, 'VERIFY')}
@@ -1127,7 +1088,7 @@ export const ExaminationsView: React.FC = () => {
                                 </>
                               )}
 
-                              {studentMs.status === 'DEPARTMENT_VERIFIED' && (
+                              {isSuperAdmin && studentMs.status === 'DEPARTMENT_VERIFIED' && (
                                 <>
                                   <SoundButton
                                     onClick={() => handleActionClick(studentMs, 'APPROVE')}
@@ -1149,7 +1110,7 @@ export const ExaminationsView: React.FC = () => {
                                 </>
                               )}
 
-                              {studentMs.status === 'ADMIN_APPROVED' && (
+                              {isSuperAdmin && studentMs.status === 'ADMIN_APPROVED' && (
                                 <SoundButton
                                   onClick={() => handleActionClick(studentMs, 'PUBLISH')}
                                   size="sm"
@@ -1280,7 +1241,8 @@ export const ExaminationsView: React.FC = () => {
                         <input
                           type="number"
                           min={0}
-                          max={70}
+                          max={sc.internal_max ?? 30}
+                          title={`Max ${sc.internal_max ?? 30}`}
                           value={sc.internal_marks}
                           onChange={(e) => handleGenerateScoreChange(idx, 'internal_marks', Number(e.target.value))}
                           className="w-18 px-2 py-1 text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold"
@@ -1290,7 +1252,8 @@ export const ExaminationsView: React.FC = () => {
                         <input
                           type="number"
                           min={0}
-                          max={30}
+                          max={sc.external_max ?? 70}
+                          title={`Max ${sc.external_max ?? 70}`}
                           value={sc.external_marks}
                           onChange={(e) => handleGenerateScoreChange(idx, 'external_marks', Number(e.target.value))}
                           className="w-18 px-2 py-1 text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold"
@@ -1365,7 +1328,8 @@ export const ExaminationsView: React.FC = () => {
                         <input
                           type="number"
                           min={0}
-                          max={sc.total_maximum || 100}
+                          max={sc.internal_max ?? 30}
+                          disabled={isTeacher && !mySubjectCodes.includes(sc.subject_code)}
                           value={sc.internal_marks || 0}
                           onChange={(e) => handleScoreChange(idx, 'internal_marks', Number(e.target.value))}
                           className="w-20 px-2 py-1 text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold"
@@ -1375,7 +1339,8 @@ export const ExaminationsView: React.FC = () => {
                         <input
                           type="number"
                           min={0}
-                          max={sc.total_maximum || 100}
+                          max={sc.external_max ?? 70}
+                          disabled={isTeacher && !mySubjectCodes.includes(sc.subject_code)}
                           value={sc.external_marks || 0}
                           onChange={(e) => handleScoreChange(idx, 'external_marks', Number(e.target.value))}
                           className="w-20 px-2 py-1 text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold"
@@ -1570,7 +1535,7 @@ export const ExaminationsView: React.FC = () => {
 
                 <div className="text-right">
                   <div className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
-                    Dr. Arnab Senapati, M.Ed., Ph.D.
+                    {principalName}
                   </div>
                   <div className="text-[11px] text-slate-400">Principal & Chief Controller of Examinations</div>
                 </div>
@@ -1668,11 +1633,16 @@ export const ExaminationsView: React.FC = () => {
         maxWidth="lg"
       >
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            playSuccess();
-            setIsTemplateModalOpen(false);
-            alert('Marksheet template configuration saved and active for new generation.');
+            try {
+              await api.updateMarksheetTemplate(templateConfig);
+              playSuccess();
+              setIsTemplateModalOpen(false);
+            } catch (err: any) {
+              playAlert();
+              alert(err.message || 'Failed to save template');
+            }
           }}
           className="space-y-4"
         >
@@ -1822,7 +1792,7 @@ export const ExaminationsView: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-extrabold text-slate-900">Dr. Arnab Senapati, M.Ed., Ph.D.</div>
+                  <div className="font-extrabold text-slate-900">{principalName}</div>
                   <div className="text-[10px] text-slate-400">Principal & Chief Controller of Examinations</div>
                 </div>
               </div>

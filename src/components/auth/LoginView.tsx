@@ -1,3 +1,4 @@
+import { api } from '../../services/api';
 import React, { useState } from 'react';
 import {
   Eye,
@@ -114,8 +115,15 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  const handleForgotSubmit = (e: React.FormEvent) => {
+  const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      await api.forgotPassword(forgotEmail.trim().toLowerCase());
+    } catch (err: any) {
+      playAlert();
+      alert(err.message || 'Could not send reset email');
+      return;
+    }
     playSuccess();
     setForgotSubmitted(true);
     setTimeout(() => {

@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx';
 import React, { useState, useEffect } from 'react';
 import {
   BarChart3,
@@ -30,135 +31,99 @@ import { Course, Marksheet, Subject, Student } from '../../types';
 
 export const AcademicAnalyticsView: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState('BED');
+  const [selectedCourse, setSelectedCourse] = useState('');
   const [marksheets, setMarksheets] = useState<Marksheet[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
   const { playSuccess } = useSound();
 
   useEffect(() => {
     const loadCourses = async () => {
       try {
-        const [cList, msList] = await Promise.all([
+        const [cList, msList, asg] = await Promise.all([
           api.getCourses(),
           api.getAllMarksheets(),
+          api.getAssignments(),
         ]);
         setCourses(cList);
         setMarksheets(msList);
-        if (cList.length > 0 && !cList.some(c => c.code === selectedCourse)) {
-          setSelectedCourse(cList[0].code);
-        }
-      } catch (e) {
-        console.error('Error loading courses for analytics:', e);
+        setAssignments(asg);
+        if (cList.length > 0) setSelectedCourse((prev) => prev || cList[0].code);
+      } catch (e: any) {
+        alert(e.message || 'Failed to load analytics');
       }
     };
     loadCourses();
   }, []);
 
   useEffect(() => {
-    const loadCourseDetails = async () => {
-      try {
-        const [subList, sRes] = await Promise.all([
-          api.getSubjects(selectedCourse),
-          api.getStudents({ course_code: selectedCourse }),
-        ]);
+    if (!selectedCourse) return;
+    Promise.all([api.getSubjects(selectedCourse), api.getStudents({ course_code: selectedCourse })])
+      .then(([subList, sRes]) => {
         setSubjects(subList);
         setStudents(sRes.items || []);
-      } catch (err) {
-        console.error('Error loading course details:', err);
-      }
-    };
-    if (selectedCourse) {
-      loadCourseDetails();
-    }
+      })
+      .catch((err) => console.error('Error loading course details:', err));
   }, [selectedCourse]);
 
-  // Dynamic Subject-wise Pass Percentage & Score Average
+  // Subject-wise pass percentage & average score (percentage) from real marksheets
   const courseMarksheets = marksheets.filter((m) => m.course_code === selectedCourse);
 
-  const subjectPerformance = subjects.length > 0
-    ? subjects.map((sub, idx) => {
-        const scores = courseMarksheets.flatMap((m) =>
-          (m.subject_scores || []).filter((sc) => sc.subject_code === sub.code)
-        );
-        const avgScore = scores.length > 0
-          ? Math.round(scores.reduce((acc, sc) => acc + (sc.total_obtained || 75), 0) / scores.length)
-          : Math.min(92, 74 + ((idx * 5) % 18));
-        const passRate = scores.length > 0
-          ? Math.round((scores.filter((sc) => (sc.total_obtained || 0) >= 40).length / scores.length) * 100)
-          : Math.min(100, 94 + (idx % 7));
+  const subjectPerformance = subjects.map((sub) => {
+    const scores = courseMarksheets.flatMap((m) =>
+      (m.subject_scores || []).filter((sc: any) => sc.subject_code === sub.code)
+    ) as any[];
+    const pct = (sc: any) => {
+      const max = Number(sc.total_maximum || sc.max_marks) || 100;
+      return ((Number(sc.total_obtained) || 0) / max) * 100;
+    };
+    return {
+      subject: sub.code,
+      name: sub.title,
+      passRate: scores.length ? Math.round((scores.filter((sc) => sc.letter_grade !== 'F').length / scores.length) * 100) : 0,
+      avgScore: scores.length ? Math.round(scores.reduce((acc, sc) => acc + pct(sc), 0) / scores.length) : 0,
+    };
+  });
 
-        return {
-          subject: sub.code,
-          name: sub.title,
-          passRate,
-          avgScore,
-        };
-      })
-    : [
-        { subject: `${selectedCourse}-101`, passRate: 98, avgScore: 78, name: 'Core Foundations' },
-        { subject: `${selectedCourse}-102`, passRate: 96, avgScore: 74, name: 'Applied Methodology' },
-        { subject: `${selectedCourse}-103`, passRate: 100, avgScore: 82, name: 'Curriculum & Pedagogy' },
-      ];
-
-  // Dynamic SGPA Grade Distribution
-  const totalInCourse = students.length || 50;
+  const band = (lo: number, hi: number) => courseMarksheets.filter((m) => (m.sgpa || 0) >= lo && (m.sgpa || 0) < hi).length;
   const gradeDistribution = [
-    {
-      grade: 'O (9.0 - 10.0)',
-      count: courseMarksheets.length > 0
-        ? courseMarksheets.filter((m) => (m.sgpa || 0) >= 9.0).length
-        : Math.round(totalInCourse * 0.22),
-      color: '#10b981',
-    },
-    {
-      grade: 'A+ (8.0 - 8.9)',
-      count: courseMarksheets.length > 0
-        ? courseMarksheets.filter((m) => (m.sgpa || 0) >= 8.0 && (m.sgpa || 0) < 9.0).length
-        : Math.round(totalInCourse * 0.36),
-      color: '#3b82f6',
-    },
-    {
-      grade: 'A (7.0 - 7.9)',
-      count: courseMarksheets.length > 0
-        ? courseMarksheets.filter((m) => (m.sgpa || 0) >= 7.0 && (m.sgpa || 0) < 8.0).length
-        : Math.round(totalInCourse * 0.26),
-      color: '#8b5cf6',
-    },
-    {
-      grade: 'B+ (6.0 - 6.9)',
-      count: courseMarksheets.length > 0
-        ? courseMarksheets.filter((m) => (m.sgpa || 0) >= 6.0 && (m.sgpa || 0) < 7.0).length
-        : Math.round(totalInCourse * 0.12),
-      color: '#f59e0b',
-    },
-    {
-      grade: 'B (5.5 - 5.9)',
-      count: courseMarksheets.length > 0
-        ? courseMarksheets.filter((m) => (m.sgpa || 0) < 6.0).length
-        : Math.max(1, Math.round(totalInCourse * 0.04)),
-      color: '#ec4899',
-    },
+    { grade: 'O (9.0 - 10.0)', count: band(9, 10.01), color: '#10b981' },
+    { grade: 'A+ (8.0 - 8.9)', count: band(8, 9), color: '#3b82f6' },
+    { grade: 'A (7.0 - 7.9)', count: band(7, 8), color: '#8b5cf6' },
+    { grade: 'B+ (6.0 - 6.9)', count: band(6, 7), color: '#f59e0b' },
+    { grade: 'Below 6.0', count: band(0, 6), color: '#ec4899' },
   ];
 
-  // Dynamic Assignment Completion Trajectory
-  const dynamicAssignments = api.getCachedList<any>('amce_assignments', []);
-  const relevantAssignments = dynamicAssignments.filter(
-    (a) => !a.courseCode || a.courseCode === selectedCourse
-  );
-  const targetCount = students.length || 50;
-
-  const assignmentTrends = [
-    { week: 'Week 1', submitted: Math.round(targetCount * 0.92), target: targetCount },
-    { week: 'Week 2', submitted: Math.round(targetCount * 0.96), target: targetCount },
-    { week: 'Week 3', submitted: Math.round(targetCount * 0.90), target: targetCount },
-    { week: 'Week 4', submitted: targetCount, target: targetCount },
-    { week: 'Week 5', submitted: Math.round(targetCount * 0.97), target: targetCount },
-  ];
+  // Assignment submissions per assignment (latest 8) for this course
+  const relevantAssignments = assignments.filter((a) => a.courseCode === selectedCourse);
+  const assignmentTrends = relevantAssignments.slice(0, 8).reverse().map((a) => ({
+    week: a.title.length > 14 ? `${a.title.slice(0, 14)}…` : a.title,
+    submitted: a.submittedCount || 0,
+    target: a.totalAssigned || 0,
+  }));
 
   const handleExportReport = () => {
+    const rows = subjectPerformance.map((s) => ({
+      Course: selectedCourse,
+      Subject: s.subject,
+      Title: s.name,
+      'Pass Rate (%)': s.passRate,
+      'Average Score (%)': s.avgScore,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Subject Analysis');
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(courseMarksheets.map((m) => ({
+        Roll: m.roll_number, Name: m.student_name, Semester: m.semester, SGPA: m.sgpa,
+        Percentage: m.overall_percentage, Result: m.result_status, Status: m.status,
+      }))),
+      'Student Results'
+    );
+    XLSX.writeFile(wb, `Academic_Analytics_${selectedCourse}.xlsx`);
     playSuccess();
-    alert('Institutional Academic Performance Report exported successfully.');
   };
 
   return (
